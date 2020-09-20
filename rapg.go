@@ -7,6 +7,7 @@ import (
 	"flag"
 	"github.com/jinzhu/gorm"
 	_ "github.com/mattn/go-sqlite3"
+	//"reflect"
 )
 
 // オプション
@@ -54,10 +55,14 @@ func main(){
 		db.Create(&Record{Keyword: keyword, Username: username, Password: pass})
 	}else if(*showAll != false){
 		db.Find(&records)
-		fmt.Println(records)
+
+		for i, data := range records{
+			fmt.Println(i,data.Keyword,data.Username,data.Password)
+		}
 	}else if(*searchPassword != "null"){
 		db.Find(&record, "keyword = ?",*searchPassword)
-		fmt.Println(record)
+		//debug
+		fmt.Println(record.Keyword,record.Username,record.Password)
 	}else{
 		//指定された文字数でパスワード生成
 		pass, _ := MakeRandomPassword(*setPasswordLength)
