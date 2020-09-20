@@ -1,4 +1,13 @@
-# Rapg
+# rapg
+
+## Installation
+from Github
+```
+git clone https://github.com/kanywst/rapg
+cd rapg/cmd/rapg
+go build .
+mv rapg /usr/local/bin
+```
 ## Usage
 ```
 $ rapg -h                                                                                                                                                                                    [master]
