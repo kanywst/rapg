@@ -7,10 +7,9 @@ import (
 	"flag"
 	"github.com/jinzhu/gorm"
 	_ "github.com/mattn/go-sqlite3"
-	//"reflect"
 )
 
-// オプション
+// Option
 var (
 	showAll = flag.Bool("a", false, "Show All Password.")
 	setKeyword = flag.String("k", "null", "Set Keyword for passsword.")
@@ -26,7 +25,6 @@ type Record struct{
 }
 
 func main(){
-	//複数個指定したらエラー吐くようにしたほうがいい???
 	flag.Parse()
 
 	//データベースに接続
@@ -39,7 +37,7 @@ func main(){
 	var record Record
 	var records []Record
 
-	if *setKeyword != "null"{
+	if *setKeyword != "null" {
 		//指定された文字数でパスワード生成
 		pass, _ := MakeRandomPassword(*setPasswordLength)
 		fmt.Println(pass)
@@ -51,19 +49,17 @@ func main(){
 		db.AutoMigrate(&Record{})
 
 		// Create
-		// 同じkeywordに対して、多重登録を防ぐ処理が必要
 		db.Create(&Record{Keyword: keyword, Username: username, Password: pass})
-	}else if(*showAll != false){
+	}else if *showAll != false {
 		db.Find(&records)
 
 		for i, data := range records{
 			fmt.Println(i,data.Keyword,data.Username,data.Password)
 		}
-	}else if(*searchPassword != "null"){
+	}else if *searchPassword != "null" {
 		db.Find(&record, "keyword = ?",*searchPassword)
-		//debug
 		fmt.Println(record.Keyword,record.Username,record.Password)
-	}else{
+	}else {
 		//指定された文字数でパスワード生成
 		pass, _ := MakeRandomPassword(*setPasswordLength)
 		fmt.Println(pass)
