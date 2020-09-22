@@ -7,19 +7,19 @@ import (
 	"flag"
 	"github.com/jinzhu/gorm"
 	_ "github.com/mattn/go-sqlite3"
+	"strings"
 )
 
 // Option
 var (
 	showAll = flag.Bool("a", false, "Show All Password.")
-	setKeyword = flag.String("k", "null", "Set Keyword for passsword.")
-	setUsername = flag.String("u","null","Set Username.")
+	setKey = flag.String("i", "null", "Set Domain/Username for passsword.")
 	searchPassword = flag.String("s", "null", "Search for Password.")
 	setPasswordLength = flag.Int("l", 20, "Set Password Length")
 )
 
 type Record struct{
-	Keyword string
+	Url string
 	Username string
 	Password string
 }
@@ -37,28 +37,31 @@ func main(){
 	var record Record
 	var records []Record
 
-	if *setKeyword != "null" {
+	if *setKey != "null"{
 		//指定された文字数でパスワード生成
 		pass, _ := MakeRandomPassword(*setPasswordLength)
 		fmt.Println(pass)
 
-		keyword := *setKeyword
-		username := *setUsername
+		slice := strings.Split(*setKey,"/")
+
+		url := slice[0]
+		username := slice[1]
 
 		// Migrate
 		db.AutoMigrate(&Record{})
 
 		// Create
-		db.Create(&Record{Keyword: keyword, Username: username, Password: pass})
+		db.Create(&Record{Url: url, Username: username, Password: pass})
 	}else if *showAll != false {
 		db.Find(&records)
 
-		for i, data := range records{
-			fmt.Println(i,data.Keyword,data.Username,data.Password)
+		for _, data := range records{
+			fmt.Println(data.Url + "/" + data.Username)
 		}
 	}else if *searchPassword != "null" {
-		db.Find(&record, "keyword = ?",*searchPassword)
-		fmt.Println(record.Keyword,record.Username,record.Password)
+		slice := strings.Split(*searchPassword,"/")
+		db.Find(&record, "url = ? AND username = ?",slice[0],slice[1])
+		fmt.Println(record.Password)
 	}else {
 		//指定された文字数でパスワード生成
 		pass, _ := MakeRandomPassword(*setPasswordLength)
