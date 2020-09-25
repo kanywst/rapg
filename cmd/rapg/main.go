@@ -16,11 +16,12 @@ import (
 
 // Option
 var (
+	commonIV = []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f}
 	showAll = flag.Bool("a", false, "Show All Password.")
 	setKey = flag.String("i", "null", "Set Domain/Username for passsword.")
-	searchPassword = flag.String("s", "null", "Search for Password.")
+	setSearchPassword = flag.String("s", "null", "Search for Password.")
 	setPasswordLength = flag.Int("l", 20, "Set Password Length.")
-	setCreateKey = flag.Bool("c", false, "Create AES Key.") 
+	setCreateKey = flag.Bool("c", false, "Create AES Key.")
 )
 
 type Record struct{
@@ -38,75 +39,15 @@ type Block interface {
 func main(){
 	flag.Parse()
 
-	var commonIV = []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f}
-
-	//データベースに接続
-	db, err := gorm.Open("sqlite3", "pass.db")
-	if err != nil{
-		panic("failed to connect database")
-	}
-	defer db.Close()
-
-	var record Record
-	var records []Record
-
 	if *setKey != "null"{
-		//keyの読み込み
-		key,err := readKeyFile()
-		if err != nil{
-			panic(err)
-		}
-		
-		c, err := aes.NewCipher(key)
-		if err != nil {
-			panic(err)
-		}
-
-		//指定された文字数でパスワード生成
-		pass, _ := MakeRandomPassword(*setPasswordLength)
-		fmt.Println(pass)
-
-		//パスワードを暗号化
-		encrypted_pass,_ := MakeEncrypt(c, []byte(pass), key, commonIV)
-		encrypted_pass_string := (*(*string)(unsafe.Pointer(&encrypted_pass)))
-		//fmt.Println(encrypted_pass_string)
-
-		slice := strings.Split(*setKey,"/")
-
-		url := slice[0]
-		username := slice[1]
-
-		db.AutoMigrate(&Record{})
-		db.Create(&Record{Url: url, Username: username, Password: encrypted_pass_string})
+		insertPassword()
 	}else if *showAll != false {
-		db.Find(&records)
-
-		for _, data := range records{
-			fmt.Println(data.Url + "/" + data.Username)
-		}
-	}else if *searchPassword != "null" {
-		//keyの読み込み
-		key,err := readKeyFile()
-		if err != nil{
-			panic(err)
-		}
-
-		c, err := aes.NewCipher(key)
-		if err != nil {
-			panic(err)
-		}
-		slice := strings.Split(*searchPassword,"/")
-		db.Find(&record, "url = ? AND username = ?",slice[0],slice[1])
-		pass := []byte(record.Password)
-		decrypted_pass,_ := MakeDecrypt(c, pass, key, commonIV)
-		decrypted_pass_string := (*(*string)(unsafe.Pointer(&decrypted_pass)))
-		//fmt.Println(record.Password)
-		fmt.Println(decrypted_pass_string)
+		showList()
+	}else if *setSearchPassword != "null" {
+		searchPassword()
 	}else if *setCreateKey != false{
-		result,_ := CreateKey();
-		fmt.Println(result)
+		CreateKey()
 	}else {
-		//指定された文字数でパスワード生成
 		pass, _ := MakeRandomPassword(*setPasswordLength)
 		fmt.Println(pass)
 	}
@@ -136,6 +77,7 @@ func MakeEncrypt(c Block, text []byte, key []byte, commonIV []byte) ([]byte, err
 
 	return result, nil
 }
+
 // AES Decrypt
 func MakeDecrypt(c Block, text []byte, key []byte, commonIV []byte) ([]byte, error){
 	cfbdec := cipher.NewCFBDecrypter(c, commonIV)
@@ -144,8 +86,9 @@ func MakeDecrypt(c Block, text []byte, key []byte, commonIV []byte) ([]byte, err
 
 	return result,nil
 }
+
 // Create AES Key
-func CreateKey() (string,error) {
+func CreateKey() {
 	f, err := os.OpenFile(".key_store", os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
 		panic(err)
@@ -160,11 +103,12 @@ func CreateKey() (string,error) {
 	if getKeyStore == "" {
 		unko,_ := MakeRandomPassword(32)
 		f.WriteString(unko)
-		return "Created key.\nSaved at .key_store.", nil
+		fmt.Println("Created key.\nSaved at .key_store.")
 	}else{
-		return "Already exists.", nil
+		fmt.Println("Already exists.")
 	}
 }
+
 // Read File
 func readKeyFile()([]byte,error){
 	f, err := os.OpenFile(".key_store", os.O_RDONLY, 0)
@@ -179,4 +123,89 @@ func readKeyFile()([]byte,error){
 	key := buf[:n]
 
 	return key,nil
+}
+
+// search password
+func searchPassword(){
+
+	db, err := gorm.Open("sqlite3", "pass.db")
+	if err != nil{
+		panic("failed to connect database")
+	}
+	defer db.Close()
+
+	var record Record
+
+	key,err := readKeyFile()
+	if err != nil{
+		panic(err)
+	}
+
+	c, err := aes.NewCipher(key)
+	if err != nil {
+		panic(err)
+	}
+	slice := strings.Split(*setSearchPassword,"/")
+	db.Find(&record, "url = ? AND username = ?",slice[0],slice[1])
+	pass := []byte(record.Password)
+	decrypted_pass,_ := MakeDecrypt(c, pass, key, commonIV)
+	decrypted_pass_string := (*(*string)(unsafe.Pointer(&decrypted_pass)))
+	//fmt.Println(record.Password)
+	fmt.Println(decrypted_pass_string)
+}
+
+// show all
+func showList(){
+
+	db, err := gorm.Open("sqlite3", "pass.db")
+	if err != nil{
+		panic("failed to connect database")
+	}
+	defer db.Close()
+
+	var records []Record
+
+	db.Find(&records)
+
+	for _, data := range records{
+		fmt.Println(data.Url + "/" + data.Username)
+	}
+}
+
+// insert Password
+func insertPassword(){
+
+	db, err := gorm.Open("sqlite3", "pass.db")
+	if err != nil{
+		panic("failed to connect database")
+	}
+	defer db.Close()
+
+	//keyの読み込み
+	key,err := readKeyFile()
+	if err != nil{
+		panic(err)
+	}
+	
+	c, err := aes.NewCipher(key)
+	if err != nil {
+		panic(err)
+	}
+
+	//指定された文字数でパスワード生成
+	pass, _ := MakeRandomPassword(*setPasswordLength)
+	fmt.Println(pass)
+
+	//パスワードを暗号化
+	encrypted_pass,_ := MakeEncrypt(c, []byte(pass), key, commonIV)
+	encrypted_pass_string := (*(*string)(unsafe.Pointer(&encrypted_pass)))
+	//fmt.Println(encrypted_pass_string)
+
+	slice := strings.Split(*setKey,"/")
+
+	url := slice[0]
+	username := slice[1]
+
+	db.AutoMigrate(&Record{})
+	db.Create(&Record{Url: url, Username: username, Password: encrypted_pass_string})
 }
