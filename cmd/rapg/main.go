@@ -184,33 +184,41 @@ func insertPassword(){
 	}
 	defer db.Close()
 
-	//keyの読み込み
-	key,err := readKeyFile()
-	if err != nil{
-		panic(err)
-	}
-	
-	c, err := aes.NewCipher(key)
-	if err != nil {
-		panic(err)
-	}
-
-	//指定された文字数でパスワード生成
-	pass, _ := MakeRandomPassword(*setPasswordLength)
-	fmt.Println(pass)
-
-	//パスワードを暗号化
-	encrypted_pass,_ := MakeEncrypt(c, []byte(pass), key, commonIV)
-	encrypted_pass_string := (*(*string)(unsafe.Pointer(&encrypted_pass)))
-	//fmt.Println(encrypted_pass_string)
-
+	//重複確認
+	var record Record
 	slice := strings.Split(*setKey,"/")
 
 	url := slice[0]
 	username := slice[1]
 
-	db.AutoMigrate(&Record{})
-	db.Create(&Record{Url: url, Username: username, Password: encrypted_pass_string})
+	db.Find(&record, "url = ? AND username = ?",url,username)
+	if record.Url == url{
+		fmt.Println("Already url/username")
+	}else{
+
+		//keyの読み込み
+		key,err := readKeyFile()
+		if err != nil{
+			panic(err)
+		}
+		
+		c, err := aes.NewCipher(key)
+		if err != nil {
+			panic(err)
+		}
+
+		//指定された文字数でパスワード生成
+		pass, _ := MakeRandomPassword(*setPasswordLength)
+		fmt.Println(pass)
+
+		//パスワードを暗号化
+		encrypted_pass,_ := MakeEncrypt(c, []byte(pass), key, commonIV)
+		encrypted_pass_string := (*(*string)(unsafe.Pointer(&encrypted_pass)))
+		//fmt.Println(encrypted_pass_string)
+
+		db.AutoMigrate(&Record{})
+		db.Create(&Record{Url: url, Username: username, Password: encrypted_pass_string})
+	}
 }
 
 //delete Password
