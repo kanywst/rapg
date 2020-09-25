@@ -14,7 +14,7 @@ mv rapg /usr/local/bin
 ```
 ## Usage
 ```
-$ rapg -h                                                                                                                                                                           [master]
+$ rapg -h                                                                                                                                                                         !+[master]
 Usage of rapg:
   -a    Show All Password.
   -c    Create AES Key.
@@ -22,5 +22,7 @@ Usage of rapg:
         Set Domain/Username for passsword. (default "null")
   -l int
         Set Password Length. (default 20)
+  -r string
+        Delete password. (default "null")
   -s string
 ```

@@ -22,6 +22,7 @@ var (
 	setSearchPassword = flag.String("s", "null", "Search for Password.")
 	setPasswordLength = flag.Int("l", 20, "Set Password Length.")
 	setCreateKey = flag.Bool("c", false, "Create AES Key.")
+	setDeletePassword = flag.String("r", "null", "Delete password.")
 )
 
 type Record struct{
@@ -41,12 +42,14 @@ func main(){
 
 	if *setKey != "null"{
 		insertPassword()
-	}else if *showAll != false {
+	}else if *showAll {
 		showList()
 	}else if *setSearchPassword != "null" {
 		searchPassword()
-	}else if *setCreateKey != false{
+	}else if *setCreateKey {
 		CreateKey()
+	}else if *setDeletePassword != "null"{
+		deletePassword()
 	}else {
 		pass, _ := MakeRandomPassword(*setPasswordLength)
 		fmt.Println(pass)
@@ -208,4 +211,18 @@ func insertPassword(){
 
 	db.AutoMigrate(&Record{})
 	db.Create(&Record{Url: url, Username: username, Password: encrypted_pass_string})
+}
+
+//delete Password
+func deletePassword(){
+	db, err := gorm.Open("sqlite3", "pass.db")
+	if err != nil{
+		panic("failed to connect database")
+	}
+	defer db.Close()
+
+	var record Record
+
+	slice := strings.Split(*setDeletePassword,"/")
+	db.Where("url = ? AND username = ?",slice[0],slice[1]).Delete(&record)
 }
