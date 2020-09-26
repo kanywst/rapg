@@ -41,11 +41,19 @@ func main(){
 	flag.Parse()
 
 	if *setKey != "null"{
-		insertPassword()
+		if checkFormat(*setKey){
+			insertPassword()
+		}else{
+			fmt.Println("Wrong format.")
+		}
 	}else if *showAll {
 		showList()
 	}else if *setSearchPassword != "null" {
-		searchPassword()
+		if checkFormat(*setSearchPassword){
+			searchPassword()
+		}else{
+			fmt.Println("Wrong format.")
+		}
 	}else if *setCreateKey {
 		CreateKey()
 	}else if *setDeletePassword != "null"{
@@ -233,4 +241,13 @@ func deletePassword(){
 
 	slice := strings.Split(*setDeletePassword,"/")
 	db.Where("url = ? AND username = ?",slice[0],slice[1]).Delete(&record)
+}
+
+//check format
+func checkFormat(text string) bool{
+	if strings.Count(text, "/") == 1{
+		return true
+	}else{
+		return false
+	}
 }
