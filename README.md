@@ -14,15 +14,22 @@ mv rapg /usr/local/bin
 ```
 ## Usage
 ```
-$ rapg -h                                                                                                                                                                         !+[master]
-Usage of rapg:
-  -a    Show All Password.
-  -c    Create AES Key.
-  -i string
-        Set Domain/Username for passsword. (default "null")
-  -l int
-        Set Password Length. (default 20)
-  -r string
-        Delete password. (default "null")
-  -s string
+$ rapg -h                                                                                                                                                                          +[master]
+NAME:
+   Rapg - rapg is a tool for generating and managing random, strong passwords.
+
+USAGE:
+   rapg [global options] command [command options] [arguments...]
+
+COMMANDS:
+   add         add password
+   init        initialize
+   search, s   search password
+   list        list password
+   remove, rm  remove password
+   help, h     Shows a list of commands or help for one command
+
+GLOBAL OPTIONS:
+   --len value, -l value  password length (default: 24)
+   --help, -h             show help
 ```
