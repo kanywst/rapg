@@ -5,24 +5,17 @@ import (
 	"crypto/cipher"
 	"crypto/rand"
 	"errors"
-	"flag"
 	"fmt"
 	"github.com/jinzhu/gorm"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/urfave/cli"
 	"os"
 	"strings"
 	"unsafe"
 )
 
-// Option
 var (
-	commonIV          = []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f}
-	showAll           = flag.Bool("a", false, "Show All Password.")
-	setKey            = flag.String("i", "null", "Set Domain/Username for passsword.")
-	setSearchPassword = flag.String("s", "null", "Search for Password.")
-	setPasswordLength = flag.Int("l", 20, "Set Password Length.")
-	setCreateKey      = flag.Bool("c", false, "Create AES Key.")
-	setDeletePassword = flag.String("r", "null", "Delete password.")
+	commonIV = []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f}
 )
 
 type Record struct {
@@ -38,30 +31,76 @@ type Block interface {
 }
 
 func main() {
-	flag.Parse()
 
-	if *setKey != "null" {
-		if checkFormat(*setKey) {
-			insertPassword()
-		} else {
-			fmt.Println("Wrong format.")
-		}
-	} else if *showAll {
-		showList()
-	} else if *setSearchPassword != "null" {
-		if checkFormat(*setSearchPassword) {
-			searchPassword()
-		} else {
-			fmt.Println("Wrong format.")
-		}
-	} else if *setCreateKey {
-		CreateKey()
-	} else if *setDeletePassword != "null" {
-		deletePassword()
-	} else {
-		pass, _ := MakeRandomPassword(*setPasswordLength)
-		fmt.Println(pass)
+	app := cli.NewApp()
+	app.Name = "Rapg"
+	app.Usage = "rapg is a tool for generating and managing random, strong passwords."
+
+	app.Flags = []cli.Flag{
+		cli.IntFlag{
+			Name:  "len,l",
+			Value: 24,
+			Usage: "password length",
+		},
 	}
+
+	app.Action = func(c *cli.Context) error {
+		fmt.Println(MakeRandomPassword(c.Int("len")))
+		return nil
+	}
+
+	app.Commands = []cli.Command{
+		{
+			Name:  "add",
+			Usage: "add password",
+			Action: func(c *cli.Context) error {
+				addPassword(c.Args().First(), c.Int("len"))
+				return nil
+			},
+			Flags: []cli.Flag{
+				cli.IntFlag{
+					Name:  "len,l",
+					Value: 24,
+				},
+			},
+		},
+		{
+			Name:  "init",
+			Usage: "initialize",
+			Action: func(c *cli.Context) error {
+				CreateKey()
+				return nil
+			},
+		},
+		{
+			Name:    "search",
+			Aliases: []string{"s"},
+			Usage:   "search password",
+			Action: func(c *cli.Context) error {
+				searchPassword(c.Args().First())
+				return nil
+			},
+		},
+		{
+			Name:  "list",
+			Usage: "list password",
+			Action: func(c *cli.Context) error {
+				showList()
+				return nil
+			},
+		},
+		{
+			Name:    "remove",
+			Aliases: []string{"rm"},
+			Usage:   "remove password",
+			Action: func(c *cli.Context) error {
+				removePassword(c.Args().First())
+				return nil
+			},
+		},
+	}
+
+	app.Run(os.Args)
 }
 
 // Create Random Password
@@ -137,7 +176,7 @@ func readKeyFile() ([]byte, error) {
 }
 
 // search password
-func searchPassword() {
+func searchPassword(term string) {
 
 	db, err := gorm.Open("sqlite3", "pass.db")
 	if err != nil {
@@ -156,7 +195,7 @@ func searchPassword() {
 	if err != nil {
 		panic(err)
 	}
-	slice := strings.Split(*setSearchPassword, "/")
+	slice := strings.Split(term, "/")
 	db.Find(&record, "url = ? AND username = ?", slice[0], slice[1])
 	pass := []byte(record.Password)
 	decrypted_pass, _ := MakeDecrypt(c, pass, key, commonIV)
@@ -183,8 +222,8 @@ func showList() {
 	}
 }
 
-// insert Password
-func insertPassword() {
+// add Password
+func addPassword(term string, passlen int) {
 
 	db, err := gorm.Open("sqlite3", "pass.db")
 	if err != nil {
@@ -194,7 +233,7 @@ func insertPassword() {
 
 	//重複確認
 	var record Record
-	slice := strings.Split(*setKey, "/")
+	slice := strings.Split(term, "/")
 
 	url := slice[0]
 	username := slice[1]
@@ -216,7 +255,7 @@ func insertPassword() {
 		}
 
 		//指定された文字数でパスワード生成
-		pass, _ := MakeRandomPassword(*setPasswordLength)
+		pass, _ := MakeRandomPassword(passlen)
 		fmt.Println(pass)
 
 		//パスワードを暗号化
@@ -230,7 +269,7 @@ func insertPassword() {
 }
 
 //delete Password
-func deletePassword() {
+func removePassword(term string) {
 	db, err := gorm.Open("sqlite3", "pass.db")
 	if err != nil {
 		panic("failed to connect database")
@@ -239,7 +278,7 @@ func deletePassword() {
 
 	var record Record
 
-	slice := strings.Split(*setDeletePassword, "/")
+	slice := strings.Split(term, "/")
 	db.Where("url = ? AND username = ?", slice[0], slice[1]).Delete(&record)
 }
 
