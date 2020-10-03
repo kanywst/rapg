@@ -4,7 +4,6 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	"errors"
 	"fmt"
 	"github.com/jinzhu/gorm"
 	_ "github.com/mattn/go-sqlite3"
@@ -15,10 +14,21 @@ import (
 )
 
 var (
-	commonIV = []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f}
-	homePath,_ = os.UserHomeDir()
-	dbPath = homePath + "/.rapg/pass.db"
-	keyPath = homePath + "/.rapg/.key_store"
+	commonIV    = []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f}
+	homePath, _ = os.UserHomeDir()
+	dbPath      = homePath + "/.rapg/pass.db"
+	keyPath     = homePath + "/.rapg/.key_store"
+)
+
+var (
+	black   = "\x1b[30m%s\x1b[0m\n"
+	red     = "\x1b[31m%s\x1b[0m\n"
+	green   = "\x1b[32m%s\x1b[0m\n"
+	yellow  = "\x1b[33m%s\x1b[0m\n"
+	blue    = "\x1b[34m%s\x1b[0m\n"
+	magenta = "\x1b[35m%s\x1b[0m\n"
+	cyan    = "\x1b[36m%s\x1b[0m\n"
+	white   = "\x1b[37m%s\x1b[0m\n"
 )
 
 type Record struct {
@@ -35,8 +45,8 @@ type Block interface {
 
 func main() {
 
-	if _,err := os.Stat(homePath + "/.rapg"); os.IsNotExist(err){
-		os.Mkdir(homePath + "/.rapg", 0755)
+	if _, err := os.Stat(homePath + "/.rapg"); os.IsNotExist(err) {
+		os.Mkdir(homePath+"/.rapg", 0755)
 	}
 
 	app := cli.NewApp()
@@ -52,7 +62,7 @@ func main() {
 	}
 
 	app.Action = func(c *cli.Context) error {
-		fmt.Println(MakeRandomPassword(c.Int("len")))
+		cprint(green, MakeRandomPassword(c.Int("len")))
 		return nil
 	}
 
@@ -61,9 +71,9 @@ func main() {
 			Name:  "add",
 			Usage: "add password",
 			Action: func(c *cli.Context) error {
-				if !checkKeyStore(){
-					fmt.Println("At first, rapg init")
-				}else{
+				if !checkKeyStore() {
+					cprint(red, "At first, rapg init")
+				} else {
 					addPassword(c.Args().First(), c.Int("len"))
 				}
 				return nil
@@ -88,9 +98,9 @@ func main() {
 			Aliases: []string{"s"},
 			Usage:   "search password",
 			Action: func(c *cli.Context) error {
-				if !checkKeyStore(){
-					fmt.Println("At first, rapg init")
-				}else{
+				if !checkKeyStore() {
+					cprint(red, "At first, rapg init")
+				} else {
 					searchPassword(c.Args().First())
 				}
 				return nil
@@ -109,9 +119,9 @@ func main() {
 			Aliases: []string{"rm"},
 			Usage:   "remove password",
 			Action: func(c *cli.Context) error {
-				if !checkKeyStore(){
-					fmt.Println("At first, rapg init")
-				}else{
+				if !checkKeyStore() {
+					cprint(red, "At first, rapg init")
+				} else {
 					removePassword(c.Args().First())
 				}
 				return nil
@@ -123,19 +133,19 @@ func main() {
 }
 
 // Create Random Password
-func MakeRandomPassword(digit int) (string, error) {
+func MakeRandomPassword(digit int) string {
 	const letters = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!#$%&()*+,-./:;<=>?@^_{|}~"
 
 	b := make([]byte, digit)
 	if _, err := rand.Read(b); err != nil {
-		return "", errors.New("unexpected error...")
+		panic(err)
 	}
 
 	var result string
 	for _, v := range b {
 		result += string(letters[int(v)%len(letters)])
 	}
-	return result, nil
+	return result
 }
 
 // AES Encrypt
@@ -169,11 +179,11 @@ func createKey() {
 	readResult := buf[:n]
 	getKeyStore := (*(*string)(unsafe.Pointer(&readResult)))
 	if getKeyStore == "" {
-		unko, _ := MakeRandomPassword(32)
-		f.WriteString(unko)
-		fmt.Println("Created key.\nSaved at ~/.rapg/.key_store.")
+		key := MakeRandomPassword(32)
+		f.WriteString(key)
+		cprint(yellow, "Created key.\nSaved at ~/.rapg/.key_store.")
 	} else {
-		fmt.Println("Already exists.")
+		cprint(red, "Already exists.")
 	}
 }
 
@@ -215,8 +225,7 @@ func searchPassword(term string) {
 	pass := []byte(record.Password)
 	decrypted_pass, _ := MakeDecrypt(c, pass, key, commonIV)
 	decrypted_pass_string := (*(*string)(unsafe.Pointer(&decrypted_pass)))
-	//fmt.Println(record.Password)
-	fmt.Println(decrypted_pass_string)
+	cprint(green, decrypted_pass_string)
 }
 
 func showList() {
@@ -231,7 +240,7 @@ func showList() {
 	db.Find(&records)
 
 	for _, data := range records {
-		fmt.Println(data.Url + "/" + data.Username)
+		cprint(yellow, data.Url+"/"+data.Username)
 	}
 }
 
@@ -250,11 +259,11 @@ func addPassword(term string, passlen int) {
 	username := slice[1]
 
 	tableCheck := db.HasTable(&Record{})
-	if tableCheck{
+	if tableCheck {
 		db.Find(&record, "url = ? AND username = ?", url, username)
 	}
 	if tableCheck && record.Url == url {
-		fmt.Println("Already url/username")
+		cprint(red, "Already url/username")
 	} else {
 
 		//keyの読み込み
@@ -269,13 +278,12 @@ func addPassword(term string, passlen int) {
 		}
 
 		//指定された文字数でパスワード生成
-		pass, _ := MakeRandomPassword(passlen)
-		fmt.Println(pass)
+		pass := MakeRandomPassword(passlen)
+		cprint(green, pass)
 
 		//パスワードを暗号化
 		encrypted_pass, _ := MakeEncrypt(c, []byte(pass), key, commonIV)
 		encrypted_pass_string := (*(*string)(unsafe.Pointer(&encrypted_pass)))
-		//fmt.Println(encrypted_pass_string)
 
 		db.AutoMigrate(&Record{})
 		db.Create(&Record{Url: url, Username: username, Password: encrypted_pass_string})
@@ -306,11 +314,15 @@ func checkFormat(text string) bool {
 //check .key_store
 func checkKeyStore() bool {
 	_, err := os.OpenFile(keyPath, os.O_RDONLY, 0)
-	if err != nil{
-		if os.IsNotExist(err){
+	if err != nil {
+		if os.IsNotExist(err) {
 			return false
 		}
 		panic(err)
 	}
 	return true
+}
+
+func cprint(color string, pass string) {
+	fmt.Printf(color, pass)
 }
