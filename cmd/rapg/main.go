@@ -94,14 +94,14 @@ func main() {
 			},
 		},
 		{
-			Name:    "search",
+			Name:    "show",
 			Aliases: []string{"s"},
-			Usage:   "search password",
+			Usage:   "show password",
 			Action: func(c *cli.Context) error {
 				if !checkKeyStore() {
 					cprint(red, "At first, rapg init")
 				} else {
-					searchPassword(c.Args().First())
+					showPassword(c.Args().First())
 				}
 				return nil
 			},
@@ -202,7 +202,7 @@ func readKeyFile() ([]byte, error) {
 	return key, nil
 }
 
-func searchPassword(term string) {
+func showPassword(term string) {
 	db, err := gorm.Open("sqlite3", dbPath)
 	if err != nil {
 		panic("failed to connect database")

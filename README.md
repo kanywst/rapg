@@ -24,7 +24,7 @@ USAGE:
 COMMANDS:
    add         add password
    init        initialize
-   search, s   search password
+   show, s     show password
    list        list password
    remove, rm  remove password
    help, h     Shows a list of commands or help for one command
