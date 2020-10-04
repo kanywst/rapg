@@ -74,8 +74,9 @@ twitter.com/test
 ```
 ### Displays the stored password.
 ```
-$ rapg show twitter.com/meiwezer
+$ rapg show twitter.com/test
 ```
+The password will be displayed.
 
 ## License
 rapg released under MIT. See LICENSE for more details.
