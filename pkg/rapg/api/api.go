@@ -7,8 +7,8 @@ import (
 	"github.com/jinzhu/gorm"
 	"strings"
 	"unsafe"
-	"rapg/internal/crypto"
-	"rapg/internal/out"
+	"github.com/kanywst/rapg/internal/crypto"
+	"github.com/kanywst/rapg/internal/out"
 )
 
 type Record struct {

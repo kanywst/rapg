@@ -4,8 +4,8 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/urfave/cli"
 	"os"
-	"rapg/internal/out"
-	"rapg/pkg/rapg/api"
+	"github.com/kanywst/rapg/internal/out"
+	"github.com/kanywst/rapg/pkg/rapg/api"
 )
 
 var (
