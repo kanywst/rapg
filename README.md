@@ -18,7 +18,6 @@ mv rapg /usr/local/bin
 Simply, rapg can be run with:
 ```
 $ rapg
-?@2,0y(97YcrF<M06&:o5Y,;
 ```
 
 ### Flags
@@ -47,6 +46,12 @@ GLOBAL OPTIONS:
 You can generate a password of length 100: 
 ```
 $ rapg -l 100
+```
+
+### Create a key to encrypt and store the password
+This is the first command you have to run:
+```
+$ rapg init
 ```
 
 ### Add password with a specific domain and username set
