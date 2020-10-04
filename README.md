@@ -4,6 +4,25 @@ Rapg is a password manager that allows you to generate and manage strong passwor
 It stands for Random Password Generator.
 We think of it as being inspired by gopass.
 
+## Resources
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+- [rapg](#rapg)
+  - [Installation](#installation)
+    - [from Github](#from-github)
+  - [Usage](#usage)
+    - [Basic Usage](#basic-usage)
+    - [Flags](#flags)
+    - [Generate random passwords of specified length](#generate-random-passwords-of-specified-length)
+    - [Create a key to encrypt and store the password](#create-a-key-to-encrypt-and-store-the-password)
+    - [Add password with a specific domain and username set](#add-password-with-a-specific-domain-and-username-set)
+    - [Remove password with a specific domain and username set](#remove-password-with-a-specific-domain-and-username-set)
+    - [Show the list of passwords](#show-the-list-of-passwords)
+    - [Displays the stored password.](#displays-the-stored-password)
+  - [License](#license)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 ## Installation
 ### from Github
 ```
@@ -60,6 +79,11 @@ Add a password for the user test on twitter.com:
 $ rapg add twitter.com/test
 ```
 A password will be generated.
+
+You can also generate and store a password of a specific length.
+```
+$ rapg add twitter.com/test -l 100
+```
 
 ### Remove password with a specific domain and username set
 Remove a password for the user test on twitter.com:
