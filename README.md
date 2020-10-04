@@ -5,7 +5,7 @@ It stands for Random Password Generator.
 We think of it as being inspired by gopass.
 
 ## Installation
-from Github
+### from Github
 ```
 git clone https://github.com/kanywst/rapg
 cd rapg/cmd/rapg
@@ -13,6 +13,15 @@ go build .
 mv rapg /usr/local/bin
 ```
 ## Usage
+
+### Basic Usage
+Simply, rapg can be run with:
+```
+$ rapg
+?@2,0y(97YcrF<M06&:o5Y,;
+```
+
+### Flags
 ```
 $ rapg -h                                                                                                                                                                          +[master]
 NAME:
@@ -33,3 +42,35 @@ GLOBAL OPTIONS:
    --len value, -l value  password length (default: 24)
    --help, -h             show help
 ```
+
+### Generate random passwords of specified length
+You can generate a password of length 100: 
+```
+$ rapg -l 100
+```
+
+### Add password with a specific domain and username set
+Add a password for the user test on twitter.com:
+```
+$ rapg add twitter.com/test
+```
+A password will be generated.
+
+### Remove password with a specific domain and username set
+Remove a password for the user test on twitter.com:
+```
+$ rapg remove twitter.com/test
+```
+
+### Show the list of passwords
+```
+$ rapg list
+twitter.com/test
+```
+### Displays the stored password.
+```
+$ rapg show twitter.com/meiwezer
+```
+
+## License
+rapg released under MIT. See LICENSE for more details.
