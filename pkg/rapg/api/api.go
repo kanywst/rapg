@@ -1,12 +1,13 @@
 package api
 
 import (
-	"os"
 	"crypto/aes"
 	"crypto/rand"
-	"github.com/jinzhu/gorm"
+	"os"
 	"strings"
 	"unsafe"
+
+	"github.com/jinzhu/gorm"
 	"github.com/kanywst/rapg/internal/crypto"
 	"github.com/kanywst/rapg/internal/out"
 )
@@ -18,7 +19,7 @@ type Record struct {
 }
 
 var (
-	commonIV    = []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f}
+	commonIV = []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f}
 )
 
 var (
@@ -51,6 +52,9 @@ func CreateKey() {
 
 	buf := make([]byte, 32)
 	n, err := f.Read(buf)
+	if err != nil {
+		panic(err)
+	}
 	readResult := buf[:n]
 	getKeyStore := (*(*string)(unsafe.Pointer(&readResult)))
 	if getKeyStore == "" {
@@ -100,7 +104,7 @@ func ShowList() {
 	db.Find(&records)
 
 	for _, data := range records {
-		out.Yellow(data.Url+"/"+data.Username)
+		out.Yellow(data.Url + "/" + data.Username)
 	}
 }
 
@@ -111,7 +115,6 @@ func AddPassword(term string, passlen int) {
 	}
 	defer db.Close()
 
-	//重複確認
 	var record Record
 	slice := strings.Split(term, "/")
 
@@ -125,8 +128,6 @@ func AddPassword(term string, passlen int) {
 	if tableCheck && record.Url == url {
 		out.Red("Already url/username")
 	} else {
-
-		//keyの読み込み
 		key, err := readKeyFile()
 		if err != nil {
 			panic(err)
@@ -137,11 +138,9 @@ func AddPassword(term string, passlen int) {
 			panic(err)
 		}
 
-		//指定された文字数でパスワード生成
 		pass := MakeRandomPassword(passlen)
 		out.Green(pass)
 
-		//パスワードを暗号化
 		encrypted_pass, _ := crypto.MakeEncrypt(c, []byte(pass), key, commonIV)
 		encrypted_pass_string := (*(*string)(unsafe.Pointer(&encrypted_pass)))
 
@@ -173,6 +172,9 @@ func readKeyFile() ([]byte, error) {
 	}
 	buf := make([]byte, 32)
 	n, err := f.Read(buf)
+	if err != nil {
+		panic(err)
+	}
 	key := buf[:n]
 
 	return key, nil

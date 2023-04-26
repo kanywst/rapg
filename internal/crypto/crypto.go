@@ -3,6 +3,7 @@ package crypto
 import (
 	"crypto/cipher"
 )
+
 type Block interface {
 	BlockSize() int
 	Encrypt(dst, src []byte)

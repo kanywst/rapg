@@ -1,16 +1,16 @@
 package main
 
 import (
-	_ "github.com/mattn/go-sqlite3"
-	"github.com/urfave/cli"
 	"os"
+
 	"github.com/kanywst/rapg/internal/out"
 	"github.com/kanywst/rapg/pkg/rapg/api"
+	_ "github.com/mattn/go-sqlite3"
+	"github.com/urfave/cli"
 )
 
 var (
 	homePath, _ = os.UserHomeDir()
-	dbPath      = homePath + "/.rapg/pass.db"
 	keyPath     = homePath + "/.rapg/.key_store"
 )
 

@@ -5,7 +5,6 @@ import (
 )
 
 var (
-	blackString   = "\x1b[30m%s\x1b[0m\n"
 	redString     = "\x1b[31m%s\x1b[0m\n"
 	greenString   = "\x1b[32m%s\x1b[0m\n"
 	yellowString  = "\x1b[33m%s\x1b[0m\n"
@@ -25,4 +24,20 @@ func Yellow(pass string) {
 
 func Green(pass string) {
 	fmt.Printf(greenString, pass)
+}
+
+func Blue(pass string) {
+	fmt.Printf(blueString, pass)
+}
+
+func Cyan(pass string) {
+	fmt.Printf(cyanString, pass)
+}
+
+func Magenta(pass string) {
+	fmt.Printf(magentaString, pass)
+}
+
+func White(pass string) {
+	fmt.Printf(whiteString, pass)
 }
