@@ -3,6 +3,7 @@ package api
 import (
 	"crypto/aes"
 	"crypto/rand"
+	"fmt"
 	"os"
 	"strings"
 	"unsafe"
@@ -28,19 +29,19 @@ var (
 	keyPath     = homePath + "/.rapg/.key_store"
 )
 
-func MakeRandomPassword(digit int) string {
+func MakeRandomPassword(digit int) (string, error) {
 	const letters = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!#$%&()*+,-./:;<=>?@^_{|}~"
 
 	b := make([]byte, digit)
 	if _, err := rand.Read(b); err != nil {
-		panic(err)
+		return "", err
 	}
 
-	var result string
+	var result strings.Builder
 	for _, v := range b {
-		result += string(letters[int(v)%len(letters)])
+		result.WriteByte(letters[int(v)%len(letters)])
 	}
-	return result
+	return result.String(), nil
 }
 
 func CreateKey() {
@@ -56,10 +57,15 @@ func CreateKey() {
 		panic(err)
 	}
 	readResult := buf[:n]
-	getKeyStore := (*(*string)(unsafe.Pointer(&readResult)))
+	getKeyStore := *(*string)(unsafe.Pointer(&readResult))
 	if getKeyStore == "" {
-		key := MakeRandomPassword(32)
-		f.WriteString(key)
+		key, err := MakeRandomPassword(32)
+		if err != nil {
+			panic(err)
+		}
+		if _, err := f.Write([]byte(key)); err != nil {
+			panic(err)
+		}
 		out.Yellow("Created key.\nSaved at ~/.rapg/.key_store.")
 	} else {
 		out.Red("Already exists.")
@@ -85,23 +91,36 @@ func ShowPassword(term string) {
 		panic(err)
 	}
 	slice := strings.Split(term, "/")
-	db.Find(&record, "url = ? AND username = ?", slice[0], slice[1])
+	if err := db.Find(&record, "url = ? AND username = ?", slice[0], slice[1]).Error; err != nil {
+		panic(err)
+	}
 	pass := []byte(record.Password)
-	decrypted_pass, _ := crypto.MakeDecrypt(c, pass, key, commonIV)
-	decrypted_pass_string := (*(*string)(unsafe.Pointer(&decrypted_pass)))
-	out.Green(decrypted_pass_string)
+
+	// Convert cipher.Block to []byte
+	ciphertext := make([]byte, len(pass))
+	c.Encrypt(ciphertext, pass)
+
+	decryptedPass, err := crypto.DecryptAES(ciphertext, key, commonIV)
+	if err != nil {
+		panic(err)
+	}
+	out.Green(string(decryptedPass))
 }
 
 func ShowList() {
 	db, err := gorm.Open("sqlite3", dbPath)
 	if err != nil {
-		panic("failed to connect database")
+		fmt.Println("failed to connect database:", err)
+		return
 	}
 	defer db.Close()
 
 	var records []Record
 
-	db.Find(&records)
+	if err := db.Find(&records).Error; err != nil {
+		fmt.Println("failed to retrieve records:", err)
+		return
+	}
 
 	for _, data := range records {
 		out.Yellow(data.Url + "/" + data.Username)
@@ -111,7 +130,8 @@ func ShowList() {
 func AddPassword(term string, passlen int) {
 	db, err := gorm.Open("sqlite3", dbPath)
 	if err != nil {
-		panic("failed to connect database")
+		fmt.Println("failed to connect database:", err)
+		return
 	}
 	defer db.Close()
 
@@ -133,33 +153,40 @@ func AddPassword(term string, passlen int) {
 			panic(err)
 		}
 
-		c, err := aes.NewCipher(key)
+		pass, err := MakeRandomPassword(passlen)
+		if err != nil {
+			fmt.Println("failed to generate password:", err)
+			return
+		}
+		out.Green(pass)
+
+		encryptedPass, err := crypto.EncryptAES([]byte(pass), key, commonIV)
 		if err != nil {
 			panic(err)
 		}
-
-		pass := MakeRandomPassword(passlen)
-		out.Green(pass)
-
-		encrypted_pass, _ := crypto.MakeEncrypt(c, []byte(pass), key, commonIV)
-		encrypted_pass_string := (*(*string)(unsafe.Pointer(&encrypted_pass)))
+		_ = encryptedPass // Unused variable removed
 
 		db.AutoMigrate(&Record{})
-		db.Create(&Record{Url: url, Username: username, Password: encrypted_pass_string})
+		if err := db.Create(&Record{Url: url, Username: username, Password: string(encryptedPass)}).Error; err != nil {
+			fmt.Println("failed to create record:", err)
+			return
+		}
 	}
 }
 
 func RemovePassword(term string) {
 	db, err := gorm.Open("sqlite3", dbPath)
 	if err != nil {
-		panic("failed to connect database")
+		fmt.Println("failed to connect database:", err)
+		return
 	}
 	defer db.Close()
 
-	var record Record
-
 	slice := strings.Split(term, "/")
-	db.Where("url = ? AND username = ?", slice[0], slice[1]).Delete(&record)
+	if err := db.Where("url = ? AND username = ?", slice[0], slice[1]).Delete(&Record{}).Error; err != nil {
+		fmt.Println("failed to delete record:", err)
+		return
+	}
 }
 
 func readKeyFile() ([]byte, error) {
@@ -170,6 +197,8 @@ func readKeyFile() ([]byte, error) {
 		}
 		return nil, err
 	}
+	defer f.Close()
+
 	buf := make([]byte, 32)
 	n, err := f.Read(buf)
 	if err != nil {
