@@ -2,42 +2,44 @@ package out
 
 import (
 	"fmt"
+
+	"github.com/fatih/color"
 )
 
 var (
-	redString     = "\x1b[31m%s\x1b[0m\n"
-	greenString   = "\x1b[32m%s\x1b[0m\n"
-	yellowString  = "\x1b[33m%s\x1b[0m\n"
-	blueString    = "\x1b[34m%s\x1b[0m\n"
-	magentaString = "\x1b[35m%s\x1b[0m\n"
-	cyanString    = "\x1b[36m%s\x1b[0m\n"
-	whiteString   = "\x1b[37m%s\x1b[0m\n"
+	red     = color.New(color.FgRed).SprintFunc()
+	yellow  = color.New(color.FgYellow).SprintFunc()
+	green   = color.New(color.FgGreen).SprintFunc()
+	blue    = color.New(color.FgBlue).SprintFunc()
+	cyan    = color.New(color.FgCyan).SprintFunc()
+	magenta = color.New(color.FgMagenta).SprintFunc()
+	white   = color.New(color.FgWhite).SprintFunc()
 )
 
 func Red(pass string) {
-	fmt.Printf(redString, pass)
+	fmt.Printf("%s\n", red(pass))
 }
 
 func Yellow(pass string) {
-	fmt.Printf(yellowString, pass)
+	fmt.Printf("%s\n", yellow(pass))
 }
 
 func Green(pass string) {
-	fmt.Printf(greenString, pass)
+	fmt.Printf("%s\n", green(pass))
 }
 
 func Blue(pass string) {
-	fmt.Printf(blueString, pass)
+	fmt.Printf("%s\n", blue(pass))
 }
 
 func Cyan(pass string) {
-	fmt.Printf(cyanString, pass)
+	fmt.Printf("%s\n", cyan(pass))
 }
 
 func Magenta(pass string) {
-	fmt.Printf(magentaString, pass)
+	fmt.Printf("%s\n", magenta(pass))
 }
 
 func White(pass string) {
-	fmt.Printf(whiteString, pass)
+	fmt.Printf("%s\n", white(pass))
 }

@@ -1,27 +1,43 @@
 package crypto
 
 import (
+	"crypto/aes"
 	"crypto/cipher"
+	"crypto/rand"
+	"io"
 )
 
-type Block interface {
-	BlockSize() int
-	Encrypt(dst, src []byte)
-	Decrypt(dst, src []byte)
+func EncryptAES(text, key, commonIV []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+
+	cfb := cipher.NewCFBEncrypter(block, commonIV)
+	ciphertext := make([]byte, len(text))
+	cfb.XORKeyStream(ciphertext, text)
+
+	return ciphertext, nil
 }
 
-func MakeEncrypt(c Block, text []byte, key []byte, commonIV []byte) ([]byte, error) {
-	cfb := cipher.NewCFBEncrypter(c, commonIV)
-	result := make([]byte, len(text))
-	cfb.XORKeyStream(result, text)
+func DecryptAES(ciphertext, key, commonIV []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
 
-	return result, nil
+	cfbdec := cipher.NewCFBDecrypter(block, commonIV)
+	plaintext := make([]byte, len(ciphertext))
+	cfbdec.XORKeyStream(plaintext, ciphertext)
+
+	return plaintext, nil
 }
 
-func MakeDecrypt(c Block, text []byte, key []byte, commonIV []byte) ([]byte, error) {
-	cfbdec := cipher.NewCFBDecrypter(c, commonIV)
-	result := make([]byte, len(text))
-	cfbdec.XORKeyStream(result, text)
-
-	return result, nil
+func GenerateAESKey() ([]byte, error) {
+	key := make([]byte, 32)
+	_, err := io.ReadFull(rand.Reader, key)
+	if err != nil {
+		return nil, err
+	}
+	return key, nil
 }
