@@ -1,128 +1,122 @@
-# rapg
+<div align="center">
 
-Rapg is a password manager that allows you to generate and manage strong passwords.
-It stands for Random Password Generator.
-We think of it as being inspired by gopass.
+# Rapg
 
-## Resources
-<!-- START doctoc generated TOC please keep comment here to allow auto update -->
-<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
-- [rapg](#rapg)
-  - [Resources](#resources)
-  - [Installation](#installation)
-    - [from Github](#from-github)
-  - [Usage](#usage)
-    - [Basic Usage](#basic-usage)
-    - [Flags](#flags)
-    - [Generate random passwords of specified length](#generate-random-passwords-of-specified-length)
-    - [Create a key to encrypt and store the password](#create-a-key-to-encrypt-and-store-the-password)
-    - [Add password with a specific domain and username set](#add-password-with-a-specific-domain-and-username-set)
-    - [Remove password with a specific domain and username set](#remove-password-with-a-specific-domain-and-username-set)
-    - [Show the list of passwords](#show-the-list-of-passwords)
-    - [Displays the stored password](#displays-the-stored-password)
-  - [License](#license)
+### The Developer-First Secret Manager
 
-<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+[![Go Version](https://img.shields.io/github/go-mod/go-version/kanywst/rapg?style=flat-square)](https://go.dev/)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/kanywst/rapg/test.yml?branch=main&style=flat-square)](https://github.com/kanywst/rapg/actions)
+[![License](https://img.shields.io/github/license/kanywst/rapg?style=flat-square)](LICENSE)
+
+**Stop sharing `.env` files over Slack.**<br>
+**Stop keeping cleartext credentials on your disk.**
+
+![Demo](demo.gif)
+
+</div>
+
+---
+
+## What is Rapg?
+
+**Rapg** (Rapid/pg) is a secure, TUI-based secret manager designed specifically for developers who live in the terminal. It allows you to store credentials securely and inject them directly into your development processes without ever writing `.env` files to disk.
 
 ## Installation
 
-### from Github
+Required: Go 1.25+
 
 ```bash
-git clone https://github.com/kanywst/rapg
-cd rapg/cmd/rapg
-go build .
-mv rapg /usr/local/bin
+go install github.com/kanywst/rapg/cmd/rapg@latest
 ```
 
-## Usage
+## Usage Guide
 
-### Basic Usage
+### 1. Initialization
 
-Simply, rapg can be run with:
+Run `rapg` for the first time to initialize your secure vault.
 
 ```bash
 rapg
 ```
 
-### Flags
+You will be prompted to **Create a Master Password**.
+> **Note:** Choose a strong password (min 12 chars). This password is used to derive your encryption key and is **never stored**. If you lose it, your data is lost forever.
+
+### 2. Managing Secrets (TUI)
+
+Once unlocked, you are in the TUI mode.
+
+- **Navigation**: Use `j`/`k` or `Up`/`Down` arrows.
+- **Add Secret**: Press `n`.
+  - **Service/Username**: Identifiers for your secret.
+  - **Password**: Leave empty to auto-generate a secure random password.
+  - **TOTP Secret**: (Optional) Enter your 2FA seed key to generate codes.
+  - **Env Key**: (Important) The environment variable name (e.g., `DATABASE_PASSWORD`) used for injection.
+- **View Details**: Press `Enter` or `Space` to decrypt and view a secret.
+- **Copy Password**: Press `Enter` on the detail view.
+- **Copy TOTP**: Press `Ctrl+t` to generate and copy the 2FA code.
+- **Delete**: Press `d` to delete the selected entry.
+- **Quit**: Press `q`.
+
+### 3. Process Injection (`rapg run`)
+
+This is the core feature. Instead of creating a `.env` file, wrap your command with `rapg run`.
+
+Rapg will decrypt secrets that have an **Env Key** set and inject them into the child process environment.
 
 ```bash
-$ rapg -h                                                                                                                                                                          +[master]
-NAME:
-   Rapg - rapg is a tool for generating and managing random, strong passwords.
+# Inject secrets into your Node.js app
+rapg run -- npm start
 
-USAGE:
-   rapg [global options] command [command options] [arguments...]
+# Inject into Python script
+rapg run -- python main.py
 
-COMMANDS:
-   add         add password
-   init        initialize
-   show, s     show password
-   list        list password
-   remove, rm  remove password
-   help, h     Shows a list of commands or help for one command
-
-GLOBAL OPTIONS:
-   --len value, -l value  password length (default: 24)
-   --help, -h             show help
+# Or any other command
+rapg run -- printenv DATABASE_PASSWORD
 ```
 
-### Generate random passwords of specified length
+#### Verify with Example Script
 
-You can generate a password of length 100:
+We included a simple Python script in `examples/main.py` to test the injection.
+
+1. Add a secret in Rapg with Env Key `DATABASE_PASSWORD`.
+2. Run the script:
 
 ```bash
-rapg -l 100
+rapg run -- python examples/main.py
 ```
 
-### Create a key to encrypt and store the password
+> **Security:** The secrets exist only in the memory of the process. They are never written to disk.
 
-This is the first command you have to run:
+### 4. Advanced Tools
+
+#### Security Audit
+
+Check if you are reusing passwords across different services.
 
 ```bash
-rapg init
+rapg audit
 ```
 
-### Add password with a specific domain and username set
+#### Import/Export
 
-Add a password for the user test on twitter.com:
+Migrate from other tools or generate a `.env` file if absolutely necessary (e.g., for Docker).
 
 ```bash
-rapg add twitter.com/test
+# Import from CSV
+rapg import passwords.csv
+
+# Export to stdout (can redirect to .env)
+rapg export > .env.local
 ```
 
-A password will be generated.
+## Security Architecture
 
-You can also generate and store a password of a specific length.
-
-```bash
-rapg add twitter.com/test -l 100
-```
-
-### Remove password with a specific domain and username set
-
-Remove a password for the user test on twitter.com:
-
-```bash
-rapg remove twitter.com/test
-```
-
-### Show the list of passwords
-
-```bash
-rapg list
-twitter.com/test
-```
-
-### Displays the stored password
-
-```bash
-rapg show twitter.com/test
-```
-
-The password will be displayed.
+- **Zero-Knowledge**: Master password is never stored.
+- **Encryption**: AES-256-GCM.
+- **Key Derivation**: Argon2id (RFC 9106).
+- **Memory Safety**: Uses `memguard` to protect keys in memory.
 
 ## License
 
-rapg released under MIT. See LICENSE for more details.
+MIT License - see [LICENSE](LICENSE) for details.
