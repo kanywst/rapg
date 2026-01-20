@@ -1,34 +1,39 @@
-.DEFAULT_GOAL := help
+.PHONY: build run test clean fmt vet install demo
 
-ifeq ($(GOPATH),)
-	GOPATH := $(shell pwd)
-endif
+BINARY_NAME=rapg
+MAIN_PATH=cmd/rapg/main.go
 
-export GOPATH
+# Build the binary
+build:
+	go build -o $(BINARY_NAME) $(MAIN_PATH)
 
-BIN_NAME := ra
+# Run properly (interactive)
+run:
+	go run $(MAIN_PATH)
 
-.PHONY: help
-help:
-	@echo "Usage: make [target]"
-	@echo ""
-	@echo "Targets:"
-	@echo "  build-mac       Build for macOS"
-	@echo "  build-linux     Build for Linux"
-	@echo "  clean           Clean build artifacts"
-	@echo "  help            Show this help message"
+# Run tests
+test:
+	go test -v ./...
 
-.PHONY: build-mac
-build-mac:
-	@echo "Building for macOS..."
-	GOOS=darwin GOARCH=amd64 go build -o ${GOPATH}/$(BIN_NAME) cmd/rapg/main.go
+# Format code
+fmt:
+	go fmt ./...
 
-.PHONY: build-linux
-build-linux:
-	@echo "Building for Linux..."
-	GOOS=linux GOARCH=amd64 go build -o $(GOPATH)/$(BIN_NAME).linux cmd/rapg/main.go
+# Static analysis
+vet:
+	go vet ./...
 
-.PHONY: clean
+# Install to GOPATH/bin
+install:
+	go install $(MAIN_PATH)
+
+# Clean build artifacts
 clean:
-	@echo "Cleaning build artifacts..."
-	rm -rf $(GOPATH)
+	rm -f $(BINARY_NAME)
+	rm -rf dist/
+	rm -f coverage.out
+	rm -f demo.gif
+
+# Update the demo GIF (requires vhs)
+demo:
+	vhs demo.tape

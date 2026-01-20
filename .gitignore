@@ -1,0 +1,43 @@
+# Binaries
+/rapg
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+
+# Output & Build
+/dist/
+coverage.out
+
+# OS Specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Go
+go.work
+go.work.sum
+vendor/
+
+# Project Specific
+# Local database (SQLite)
+*.db
+*.db-journal
+*.db-wal
+
+# Generated env files
+.env
+
+# User config directory (if created locally during dev)
+.rapg/
