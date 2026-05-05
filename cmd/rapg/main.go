@@ -166,10 +166,11 @@ Note: Secrets configured in Rapg will override any existing environment variable
 			}
 
 			if err := runCmd.Run(); err != nil {
-				// Try to pass through the exit code
-				if exitError, ok := err.(*exec.ExitError); ok {
-					if status, ok := exitError.Sys().(syscall.WaitStatus); ok {
-						os.Exit(status.ExitStatus())
+				// ProcessState.ExitCode() is portable across Linux/macOS/Windows
+				// and returns -1 if the process did not exit normally.
+				if runCmd.ProcessState != nil {
+					if code := runCmd.ProcessState.ExitCode(); code >= 0 {
+						os.Exit(code)
 					}
 				}
 				fmt.Fprintf(os.Stderr, "Command execution failed: %v\n", err)
