@@ -105,7 +105,11 @@ func List() ([]PasswordEntry, error) {
 }
 
 func Delete(id uint) error {
-	return DB.Delete(&PasswordEntry{}, id).Error
+	// Unscoped() forces a hard delete. The default GORM behavior for models
+	// embedding gorm.Model is a soft delete (sets deleted_at), which would
+	// leave the encrypted blob and metadata on disk — unacceptable for a
+	// secret manager.
+	return DB.Unscoped().Delete(&PasswordEntry{}, id).Error
 }
 
 func Find(service, username string) (*PasswordEntry, error) {

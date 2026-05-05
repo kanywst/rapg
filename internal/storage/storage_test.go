@@ -96,4 +96,11 @@ func TestEntryOperations(t *testing.T) {
 	if len(entries) != 0 {
 		t.Errorf("List should return 0 entries after delete, got %d", len(entries))
 	}
+
+	// Verify hard delete: the row must be gone even with Unscoped(), not just soft-deleted.
+	var count int64
+	DB.Unscoped().Model(&PasswordEntry{}).Where("id = ?", entry.ID).Count(&count)
+	if count != 0 {
+		t.Errorf("Delete should hard-delete the row, but %d row(s) remain in the table", count)
+	}
 }
