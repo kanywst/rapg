@@ -30,6 +30,11 @@ const Filename = ".rapg.toml"
 type Project struct {
 	Namespace string   `toml:"namespace"`
 	Keys      []string `toml:"keys,omitempty"`
+	// InheritGlobal, when true, also injects entries with empty Namespace
+	// (the 'global' bucket) on top of namespace-matched entries. Project
+	// entries take precedence on env-key collision. Defaults to false —
+	// strict isolation, which is the safer default for the agent narrative.
+	InheritGlobal bool `toml:"inherit_global,omitempty"`
 }
 
 // Allows reports whether the given env key is permitted by this project's

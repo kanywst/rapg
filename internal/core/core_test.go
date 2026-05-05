@@ -188,6 +188,58 @@ func TestGetEnvVars_namespaceScoping(t *testing.T) {
 	}
 }
 
+func TestGetEnvVars_inheritGlobal(t *testing.T) {
+	cleanup := setupCoreTest(t)
+	defer cleanup()
+	InitializeVault([]byte("p"))
+
+	// Global utility secret + proj-a secrets.
+	AddEntry("", "github", "u", storage.SecretData{Password: "ghp_global", EnvKey: "GITHUB_TOKEN"})
+	AddEntry("proj-a", "anthropic", "u", storage.SecretData{Password: "ka", EnvKey: "ANTHROPIC_API_KEY"})
+
+	// Without inherit_global → only proj-a entries.
+	got, err := GetEnvVars(&config.Project{Namespace: "proj-a"})
+	if err != nil {
+		t.Fatalf("GetEnvVars: %v", err)
+	}
+	if _, ok := got["GITHUB_TOKEN"]; ok {
+		t.Errorf("global GITHUB_TOKEN leaked into strict-isolation run: %#v", got)
+	}
+	if got["ANTHROPIC_API_KEY"] != "ka" {
+		t.Errorf("proj-a ANTHROPIC_API_KEY missing: %#v", got)
+	}
+
+	// With inherit_global → global GITHUB_TOKEN visible alongside proj-a.
+	got, err = GetEnvVars(&config.Project{Namespace: "proj-a", InheritGlobal: true})
+	if err != nil {
+		t.Fatalf("GetEnvVars(inherit): %v", err)
+	}
+	if got["GITHUB_TOKEN"] != "ghp_global" {
+		t.Errorf("inherited GITHUB_TOKEN missing or wrong: %#v", got)
+	}
+	if got["ANTHROPIC_API_KEY"] != "ka" {
+		t.Errorf("proj-a ANTHROPIC_API_KEY missing: %#v", got)
+	}
+}
+
+func TestGetEnvVars_inheritGlobal_projectOverridesGlobal(t *testing.T) {
+	cleanup := setupCoreTest(t)
+	defer cleanup()
+	InitializeVault([]byte("p"))
+
+	// Same env key in global and proj-a — project value must win.
+	AddEntry("", "github", "u", storage.SecretData{Password: "ghp_GLOBAL", EnvKey: "GITHUB_TOKEN"})
+	AddEntry("proj-a", "github", "u", storage.SecretData{Password: "ghp_PROJECT", EnvKey: "GITHUB_TOKEN"})
+
+	got, err := GetEnvVars(&config.Project{Namespace: "proj-a", InheritGlobal: true})
+	if err != nil {
+		t.Fatalf("GetEnvVars: %v", err)
+	}
+	if got["GITHUB_TOKEN"] != "ghp_PROJECT" {
+		t.Errorf("project value should override global on key collision; got %q", got["GITHUB_TOKEN"])
+	}
+}
+
 func TestGenerateRandomPassword(t *testing.T) {
 	p1, err := GenerateRandomPassword(16)
 	if err != nil {

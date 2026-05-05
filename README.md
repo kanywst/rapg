@@ -71,9 +71,18 @@ Drop a `.rapg.toml` at your repository root to scope which secrets `rapg run` an
 ```toml
 namespace = "myapp"
 
-# Optional: explicit env-key whitelist. If omitted, every secret in
-# the namespace whose Env Key is non-empty is injected.
+# Optional. Three states:
+#   - omitted               → no whitelist, inject every env-tagged
+#                             secret in the namespace
+#   - keys = []             → explicit deny-all (project recognized,
+#                             but no env vars injected)
+#   - keys = ["A", "B"]     → standard whitelist
 keys = ["DATABASE_URL", "ANTHROPIC_API_KEY"]
+
+# Optional. Default false. When true, entries with empty Namespace
+# (the 'global' bucket) are also injected. Project entries override
+# global on env-key collision.
+# inherit_global = true
 ```
 
 When you add a secret in the TUI, fill in the `Namespace` field with the same value (e.g., `myapp`). Then:
@@ -89,7 +98,7 @@ Resolution rules:
 
 - Discovery walks up from `cwd` to `/`. The first `.rapg.toml` wins.
 - No `.rapg.toml` found → only entries with empty Namespace ("global") are injected.
-- A namespaced entry is invisible outside its project, even on a global run.
+- A namespaced entry is invisible outside its project unless the project opts in via `inherit_global = true` — which lets shared utility secrets (e.g. `GITHUB_TOKEN`) live once in the global bucket and be borrowed by projects that ask for them. Project entries always win on key collision.
 - Same `Service` / `Username` pair can exist across multiple namespaces.
 
 ## Shell hook (informational)
