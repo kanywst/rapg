@@ -179,60 +179,7 @@ Note: Secrets configured in Rapg will override any existing environment variable
 		},
 	}
 
-	// New: Import Command
-	importCmd := &cobra.Command{
-		Use:   "import [csv_file]",
-		Short: "Import passwords from a CSV file",
-		Args:  cobra.ExactArgs(1),
-		Run: func(cmd *cobra.Command, args []string) {
-			file, err := os.Open(args[0])
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error opening file: %v\n", err)
-				os.Exit(1)
-			}
-			defer file.Close()
-
-			unlockVault()
-
-			count, err := core.ImportCSV(file)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Import failed: %v\n", err)
-				os.Exit(1)
-			}
-			fmt.Printf("Successfully imported %d passwords.\n", count)
-		},
-	}
-
-	// New: Audit Command
-	auditCmd := &cobra.Command{
-		Use:   "audit",
-		Short: "Check for reused passwords",
-		Run: func(cmd *cobra.Command, args []string) {
-			unlockVault()
-
-			results, err := core.AuditPasswords()
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Audit failed: %v\n", err)
-				os.Exit(1)
-			}
-
-			if len(results) == 0 {
-				fmt.Println("✅ No reused passwords found. Good job!")
-				return
-			}
-
-			fmt.Println("⚠️  Reuse Detected! The following passwords are used in multiple places:")
-			for _, r := range results {
-				fmt.Printf("\nPassword used %d times:\n", r.Count)
-				for _, svc := range r.Services {
-					fmt.Printf("  - %s\n", svc)
-				}
-			}
-			fmt.Println("\nTip: Use 'rapg gen' to replace them with unique passwords.")
-		},
-	}
-
-	rootCmd.AddCommand(genCmd, nukeCmd, exportCmd, runCmd, importCmd, auditCmd)
+	rootCmd.AddCommand(genCmd, nukeCmd, exportCmd, runCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
