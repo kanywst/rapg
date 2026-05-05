@@ -72,3 +72,25 @@ func TestRedact_emptySecretsList(t *testing.T) {
 		t.Errorf("empty secrets should return input unchanged")
 	}
 }
+
+// TestRedact_dedupesByValue confirms that the same Value appearing in
+// multiple Secret entries is processed once (first label wins).
+func TestRedact_dedupesByValue(t *testing.T) {
+	in := "the secret is sharedpassword123 and again sharedpassword123"
+	got, n := Redact(in, []Secret{
+		{Value: "sharedpassword123", Label: "FIRST"},
+		{Value: "sharedpassword123", Label: "SECOND"},
+	})
+	if n != 1 {
+		t.Errorf("matched count = %d, want 1 (dedup expected)", n)
+	}
+	if strings.Contains(got, "sharedpassword123") {
+		t.Errorf("plaintext leaked: %q", got)
+	}
+	if strings.Contains(got, "[REDACTED:SECOND]") {
+		t.Errorf("second-label mask should be suppressed by dedup; got %q", got)
+	}
+	if !strings.Contains(got, "[REDACTED:FIRST]") {
+		t.Errorf("first-label mask missing: %q", got)
+	}
+}

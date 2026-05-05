@@ -35,15 +35,23 @@ type Secret struct {
 // by "[REDACTED:<Label>]". Values shorter than MinLength are skipped.
 // Returns the count of distinct values that actually matched.
 func Redact(input string, secrets []Secret) (string, int) {
-	// Sort by descending length so longer values are masked before any
-	// shorter values they might contain. (Example: vault has both
-	// "sk-ant-abc12345" and "abc12345" — without this ordering the second
-	// pass would reach into the already-masked first match.)
+	// Filter + de-dup by Value (vaults often have the same password under
+	// multiple service names; processing it twice is wasted work). First
+	// label wins. Then sort by descending length so longer values are
+	// masked before any shorter values they might contain. (Example: vault
+	// has both "sk-ant-abc12345" and "abc12345" — without this ordering the
+	// second pass would reach into the already-masked first match.)
 	sorted := make([]Secret, 0, len(secrets))
+	seen := make(map[string]struct{}, len(secrets))
 	for _, s := range secrets {
-		if len(s.Value) >= MinLength {
-			sorted = append(sorted, s)
+		if len(s.Value) < MinLength {
+			continue
 		}
+		if _, dup := seen[s.Value]; dup {
+			continue
+		}
+		seen[s.Value] = struct{}{}
+		sorted = append(sorted, s)
 	}
 	sort.SliceStable(sorted, func(i, j int) bool {
 		return len(sorted[i].Value) > len(sorted[j].Value)
