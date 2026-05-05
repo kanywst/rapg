@@ -57,31 +57,83 @@ rapg run -- python examples/main.py
 | Key | Action |
 | --- | --- |
 | `j` / `k` / arrows | Navigate the entry list |
-| `n` | New entry |
+| `n` | New entry (Service, Username, Password, TOTP, Namespace, Env Key, Notes) |
 | `enter` / `space` | Open detail view |
 | `enter` (in detail) | Copy password to clipboard |
 | `ctrl+t` | Copy current TOTP code |
 | `d` | Delete the selected entry |
 | `q` | Quit |
 
+## Project-scoped secrets (`.rapg.toml`)
+
+Drop a `.rapg.toml` at your repository root to scope which secrets `rapg run` and `rapg export` see:
+
+```toml
+namespace = "myapp"
+
+# Optional: explicit env-key whitelist. If omitted, every secret in
+# the namespace whose Env Key is non-empty is injected.
+keys = ["DATABASE_URL", "ANTHROPIC_API_KEY"]
+```
+
+When you add a secret in the TUI, fill in the `Namespace` field with the same value (e.g., `myapp`). Then:
+
+```bash
+cd ~/code/myapp
+rapg run -- claude code
+# [rapg] project: myapp (/Users/me/code/myapp/.rapg.toml)
+# child sees only myapp's DATABASE_URL and ANTHROPIC_API_KEY
+```
+
+Resolution rules:
+
+- Discovery walks up from `cwd` to `/`. The first `.rapg.toml` wins.
+- No `.rapg.toml` found → only entries with empty Namespace ("global") are injected.
+- A namespaced entry is invisible outside its project, even on a global run.
+- Same `Service` / `Username` pair can exist across multiple namespaces.
+
+## Shell hook (informational)
+
+`rapg hook <shell>` prints a snippet that announces project entry/exit on `cd`. It does **not** auto-inject secrets — run `rapg run -- <cmd>` for that. Auto-injection (direnv-style) is planned for v4.1; doing it safely without an in-shell key cache is a separate problem.
+
+```bash
+# zsh: ~/.zshrc
+eval "$(rapg hook zsh)"
+
+# bash: ~/.bashrc
+eval "$(rapg hook bash)"
+
+# fish: ~/.config/fish/config.fish
+rapg hook fish | source
+```
+
+After installing, `cd` between project directories prints:
+
+```text
+[rapg] entered project: myapp  (rapg run -- <cmd> to inject)
+[rapg] left project: myapp
+```
+
 ## Subcommands
 
 | Command | Purpose |
 | --- | --- |
 | `rapg` | Launch the TUI |
-| `rapg run -- <cmd>` | Inject secrets into a child process |
+| `rapg run -- <cmd>` | Inject secrets into a child process (respects `.rapg.toml`) |
 | `rapg gen [length]` | Generate a cryptographically random password |
-| `rapg export` | Print env-tagged secrets as `KEY=value` lines (use sparingly: Docker, CI debugging) |
+| `rapg export` | Print env-tagged secrets as `KEY=value` lines (respects `.rapg.toml`) |
+| `rapg project` | Print the current project's namespace; exit 1 if not in a project |
+| `rapg hook <shell>` | Print a `cd` notifier snippet for `zsh` / `bash` / `fish` |
 | `rapg nuke` | Wipe the local vault after confirmation |
 
 ## Roadmap
 
-The next milestones lean into the agent-leakage problem:
+Next on the agent-leakage track:
 
-1. `.rapg.toml` per-project config and a shell hook so `cd project/` auto-loads the right secrets.
-2. `rapg redact <file>` — scan a file for vault values and mask them; use this on agent transcripts before sharing.
-3. `rapg session log` — audit which command saw which secret and when.
-4. `rapg proxy --provider anthropic|openai` (experimental) — local HTTP proxy that holds the real API key, so agents only ever see a short-lived proxy token.
+1. `rapg redact <file>` — scan a file for vault values and mask them; use this on agent transcripts before sharing.
+2. `rapg session log` — audit which command saw which secret and when.
+3. `rapg proxy --provider anthropic|openai` (experimental) — local HTTP proxy that holds the real API key, so agents only ever see a short-lived proxy token.
+4. Direnv-style auto-injection on `cd`, with a TPM / Touch ID / Secure Enclave-backed key cache.
 
 ## Security
 
