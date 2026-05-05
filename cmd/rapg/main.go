@@ -13,6 +13,7 @@ import (
 
 	"github.com/awnumar/memguard"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/kanywst/rapg/internal/audit"
 	"github.com/kanywst/rapg/internal/config"
 	"github.com/kanywst/rapg/internal/core"
 	"github.com/kanywst/rapg/internal/storage"
@@ -169,15 +170,21 @@ Note: Secrets configured in Rapg will override any existing environment variable
 				runCmd.Env = append(runCmd.Env, fmt.Sprintf("%s=%s", k, v))
 			}
 
-			if err := runCmd.Run(); err != nil {
-				// ProcessState.ExitCode() is portable across Linux/macOS/Windows
-				// and returns -1 if the process did not exit normally.
+			runErr := runCmd.Run()
+
+			// Build the audit record AFTER the child exits so we have the
+			// real ProcessState.ExitCode(). Failures to write the log are
+			// non-fatal (logged to stderr) — auditing should never block
+			// the actual run.
+			recordSession(project, command, cmdArgs, envVars, runCmd)
+
+			if runErr != nil {
 				if runCmd.ProcessState != nil {
 					if code := runCmd.ProcessState.ExitCode(); code >= 0 {
 						os.Exit(code)
 					}
 				}
-				fmt.Fprintf(os.Stderr, "Command execution failed: %v\n", err)
+				fmt.Fprintf(os.Stderr, "Command execution failed: %v\n", runErr)
 				os.Exit(1)
 			}
 		},
@@ -265,6 +272,37 @@ func unlockVault() {
 	if err := core.UnlockVault(passwordBuffer.Bytes()); err != nil {
 		fmt.Fprintln(os.Stderr, "Invalid password.")
 		os.Exit(1)
+	}
+}
+
+// recordSession appends one entry to ~/.rapg/sessions.jsonl describing the
+// command we just ran and which env keys were injected. Failures here are
+// non-fatal — auditing must not block the actual run.
+func recordSession(project *config.Project, command string, args []string, envVars map[string]string, runCmd *exec.Cmd) {
+	keys := make([]string, 0, len(envVars))
+	for k := range envVars {
+		keys = append(keys, k)
+	}
+
+	s := audit.Session{
+		Command:  command,
+		Args:     args,
+		EnvKeys:  keys,
+		ExitCode: -1,
+	}
+	if project != nil {
+		s.Namespace = project.Namespace
+	}
+	if runCmd.ProcessState != nil {
+		s.ExitCode = runCmd.ProcessState.ExitCode()
+		s.PID = runCmd.ProcessState.Pid()
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		s.Cwd = cwd
+	}
+
+	if err := audit.Write(s); err != nil {
+		fmt.Fprintf(os.Stderr, "[rapg] warning: failed to write session log: %v\n", err)
 	}
 }
 
