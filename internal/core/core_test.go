@@ -3,6 +3,7 @@ package core
 import (
 	"testing"
 
+	"github.com/kanywst/rapg/internal/config"
 	"github.com/kanywst/rapg/internal/storage"
 )
 
@@ -126,7 +127,7 @@ func TestEnvVars(t *testing.T) {
 	AddEntry("", "api", "key", storage.SecretData{Password: "12345", EnvKey: "API_KEY"})
 	AddEntry("", "other", "foo", storage.SecretData{Password: "ignored", EnvKey: ""})
 
-	vars, err := GetEnvVars()
+	vars, err := GetEnvVars(nil)
 	if err != nil {
 		t.Fatalf("GetEnvVars failed: %v", err)
 	}
@@ -136,6 +137,54 @@ func TestEnvVars(t *testing.T) {
 	}
 	if vars["DATABASE_URL"] != "postgres://..." {
 		t.Error("DATABASE_URL mismatch")
+	}
+}
+
+func TestGetEnvVars_namespaceScoping(t *testing.T) {
+	cleanup := setupCoreTest(t)
+	defer cleanup()
+	InitializeVault([]byte("p"))
+
+	// Two namespaces + one global entry, all env-tagged.
+	AddEntry("", "global-db", "u", storage.SecretData{Password: "g", EnvKey: "GLOBAL_KEY"})
+	AddEntry("proj-a", "db", "u", storage.SecretData{Password: "a", EnvKey: "DB_URL"})
+	AddEntry("proj-a", "anthropic", "u", storage.SecretData{Password: "ka", EnvKey: "ANTHROPIC_API_KEY"})
+	AddEntry("proj-b", "db", "u", storage.SecretData{Password: "b", EnvKey: "DB_URL"})
+
+	// nil project → only the global entry.
+	got, err := GetEnvVars(nil)
+	if err != nil {
+		t.Fatalf("GetEnvVars(nil): %v", err)
+	}
+	if len(got) != 1 || got["GLOBAL_KEY"] != "g" {
+		t.Errorf("nil project leaked or missed entries: %#v", got)
+	}
+
+	// proj-a, no whitelist → all proj-a env-tagged entries.
+	got, err = GetEnvVars(&config.Project{Namespace: "proj-a"})
+	if err != nil {
+		t.Fatalf("GetEnvVars(proj-a): %v", err)
+	}
+	if len(got) != 2 || got["DB_URL"] != "a" || got["ANTHROPIC_API_KEY"] != "ka" {
+		t.Errorf("proj-a got: %#v", got)
+	}
+
+	// proj-a with whitelist → only DB_URL passes.
+	got, err = GetEnvVars(&config.Project{Namespace: "proj-a", Keys: []string{"DB_URL"}})
+	if err != nil {
+		t.Fatalf("GetEnvVars(proj-a, whitelist): %v", err)
+	}
+	if len(got) != 1 || got["DB_URL"] != "a" {
+		t.Errorf("proj-a whitelist got: %#v", got)
+	}
+
+	// proj-b → its own DB_URL, not proj-a's.
+	got, err = GetEnvVars(&config.Project{Namespace: "proj-b"})
+	if err != nil {
+		t.Fatalf("GetEnvVars(proj-b): %v", err)
+	}
+	if got["DB_URL"] != "b" {
+		t.Errorf("proj-b DB_URL = %q, want %q", got["DB_URL"], "b")
 	}
 }
 
