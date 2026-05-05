@@ -1,122 +1,100 @@
-<div align="center">
+# rapg
 
-# Rapg
+Single-binary, local-first secret manager built for the AI-agent era.
 
-### The Developer-First Secret Manager
-
-[![Go Version](https://img.shields.io/github/go-mod/go-version/kanywst/rapg?style=flat-square)](https://go.dev/)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/kanywst/rapg/test.yml?branch=main&style=flat-square)](https://github.com/kanywst/rapg/actions)
-[![License](https://img.shields.io/github/license/kanywst/rapg?style=flat-square)](LICENSE)
-
-**Stop sharing `.env` files over Slack.**<br>
-**Stop keeping cleartext credentials on your disk.**
+[![Go Version](https://img.shields.io/github/go-mod/go-version/kanywst/rapg?style=flat-square)](https://go.dev/) [![Build Status](https://img.shields.io/github/actions/workflow/status/kanywst/rapg/test.yml?branch=master&style=flat-square)](https://github.com/kanywst/rapg/actions) [![License](https://img.shields.io/github/license/kanywst/rapg?style=flat-square)](LICENSE)
 
 ![Demo](demo.gif)
 
-</div>
+## The problem in 2026
 
----
+You hand `ANTHROPIC_API_KEY` to Claude Code. You hand `AWS_SECRET_ACCESS_KEY` to your Cursor agent. You hand a database URL to whatever shell snippet your LLM just generated.
 
-## What is Rapg?
+Three things go wrong:
 
-**Rapg** (Rapid/pg) is a secure, TUI-based secret manager designed specifically for developers who live in the terminal. It allows you to store credentials securely and inject them directly into your development processes without ever writing `.env` files to disk.
+1. The agent's transcript and context window now contain your secret. Logs persist, screenshots happen, transcripts get pasted into bug reports.
+2. `.env` files keep that secret in plaintext on disk, and someone always commits one by accident.
+3. Existing managers (1Password, Bitwarden) solve team sharing — they do not solve agent leakage.
 
-## Installation
+`rapg` is a small Go binary that keeps your dev secrets in a locally encrypted vault and injects them into child processes, including AI agents, without ever writing them to disk.
 
-Required: Go 1.25+
+## Install
+
+Requires Go 1.25 or newer.
 
 ```bash
 go install github.com/kanywst/rapg/cmd/rapg@latest
 ```
 
-## Usage Guide
+## Quick start
 
-### 1. Initialization
-
-Run `rapg` for the first time to initialize your secure vault.
+First run sets a master password (minimum 12 chars, strong complexity):
 
 ```bash
 rapg
 ```
 
-You will be prompted to **Create a Master Password**.
-> **Note:** Choose a strong password (min 12 chars). This password is used to derive your encryption key and is **never stored**. If you lose it, your data is lost forever.
+In the TUI, press `n` to add a secret. Fill in `Service`, `Username`, `Password`, and the `Env Key` field, for example `ANTHROPIC_API_KEY`.
 
-### 2. Managing Secrets (TUI)
-
-Once unlocked, you are in the TUI mode.
-
-- **Navigation**: Use `j`/`k` or `Up`/`Down` arrows.
-- **Add Secret**: Press `n`.
-  - **Service/Username**: Identifiers for your secret.
-  - **Password**: Leave empty to auto-generate a secure random password.
-  - **TOTP Secret**: (Optional) Enter your 2FA seed key to generate codes.
-  - **Env Key**: (Important) The environment variable name (e.g., `DATABASE_PASSWORD`) used for injection.
-- **View Details**: Press `Enter` or `Space` to decrypt and view a secret.
-- **Copy Password**: Press `Enter` on the detail view.
-- **Copy TOTP**: Press `Ctrl+t` to generate and copy the 2FA code.
-- **Delete**: Press `d` to delete the selected entry.
-- **Quit**: Press `q`.
-
-### 3. Process Injection (`rapg run`)
-
-This is the core feature. Instead of creating a `.env` file, wrap your command with `rapg run`.
-
-Rapg will decrypt secrets that have an **Env Key** set and inject them into the child process environment.
+Inject those secrets into any child process:
 
 ```bash
-# Inject secrets into your Node.js app
-rapg run -- npm start
-
-# Inject into Python script
-rapg run -- python main.py
-
-# Or any other command
-rapg run -- printenv DATABASE_PASSWORD
+rapg run -- claude code
+rapg run -- npm run dev
+rapg run -- python script.py
 ```
 
-#### Verify with Example Script
+The child sees `ANTHROPIC_API_KEY` and any other `Env Key`-tagged secret in its environment. Your `.env` file stays out of git, your real keys stay off disk, and the parent shell never holds them in scrollback.
 
-We included a simple Python script in `examples/main.py` to test the injection.
-
-1. Add a secret in Rapg with Env Key `DATABASE_PASSWORD`.
-2. Run the script:
+A minimal verification script lives at `examples/main.py`:
 
 ```bash
 rapg run -- python examples/main.py
 ```
 
-> **Security:** The secrets exist only in the memory of the process. They are never written to disk.
+## TUI keys
 
-### 4. Advanced Tools
+| Key | Action |
+| --- | --- |
+| `j` / `k` / arrows | Navigate the entry list |
+| `n` | New entry |
+| `enter` / `space` | Open detail view |
+| `enter` (in detail) | Copy password to clipboard |
+| `ctrl+t` | Copy current TOTP code |
+| `d` | Delete the selected entry |
+| `q` | Quit |
 
-#### Security Audit
+## Subcommands
 
-Check if you are reusing passwords across different services.
+| Command | Purpose |
+| --- | --- |
+| `rapg` | Launch the TUI |
+| `rapg run -- <cmd>` | Inject secrets into a child process |
+| `rapg gen [length]` | Generate a cryptographically random password |
+| `rapg export` | Print env-tagged secrets as `KEY=value` lines (use sparingly: Docker, CI debugging) |
+| `rapg nuke` | Wipe the local vault after confirmation |
 
-```bash
-rapg audit
-```
+## Roadmap
 
-#### Import/Export
+The next milestones lean into the agent-leakage problem:
 
-Migrate from other tools or generate a `.env` file if absolutely necessary (e.g., for Docker).
+1. `.rapg.toml` per-project config and a shell hook so `cd project/` auto-loads the right secrets.
+2. `rapg redact <file>` — scan a file for vault values and mask them; use this on agent transcripts before sharing.
+3. `rapg session log` — audit which command saw which secret and when.
+4. `rapg proxy --provider anthropic|openai` (experimental) — local HTTP proxy that holds the real API key, so agents only ever see a short-lived proxy token.
 
-```bash
-# Import from CSV
-rapg import passwords.csv
+## Security
 
-# Export to stdout (can redirect to .env)
-rapg export > .env.local
-```
+| Concern | Implementation |
+| --- | --- |
+| Master password | Never written to disk; only an Argon2id-derived key hash is stored for verification |
+| Key derivation | Argon2id (RFC 9106), defaults `time=3`, `memory=128 MiB`, `threads=4` |
+| Encryption | AES-256-GCM (NIST SP 800-38D) with a 12-byte random nonce per record |
+| Memory protection | Master key held in a `memguard` LockedBuffer and zeroed on exit |
+| At-rest layout | Single SQLite file at `~/.rapg/rapg.db`, directory mode `0700` |
 
-## Security Architecture
-
-- **Zero-Knowledge**: Master password is never stored.
-- **Encryption**: AES-256-GCM.
-- **Key Derivation**: Argon2id (RFC 9106).
-- **Memory Safety**: Uses `memguard` to protect keys in memory.
+See [`TECH.md`](TECH.md) for the full crypto spec.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE).
