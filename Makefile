@@ -34,6 +34,7 @@ clean:
 	rm -f coverage.out
 	rm -f demo.gif
 
-# Update the demo GIF (requires vhs)
-demo:
+# Update the demo GIF (requires vhs).
+# Builds the binary first so demo.tape doesn't have to (avoids Hide-block leaks).
+demo: build
 	vhs demo.tape

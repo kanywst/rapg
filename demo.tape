@@ -1,109 +1,103 @@
-# Where should we write the GIF?
+# vhs script for demo.gif
+# Re-run with: make demo  (which builds ./rapg first then runs `vhs demo.tape`)
+# CI re-generates on master push via .github/workflows/demo.yml.
+
 Output demo.gif
 
-# Set up a 1200x600 terminal with 46px font.
 Set FontSize 22
 Set Width 1200
 Set Height 800
-Set TypingSpeed 75ms
+Set TypingSpeed 60ms
+Set Theme "Catppuccin Mocha"
 
-# Cleanup and Build (Hidden)
+# ---- Hidden cleanup (vault wipe + clear screen) ----
 Hide
-Type "rm -rf ~/.rapg"
+Type "rm -rf ~/.rapg && clear"
 Enter
-Type "go build -o rapg cmd/rapg/main.go"
-Enter
-Ctrl+l
 Sleep 500ms
 Show
 
-# 1. Start Rapg
-Type "./rapg"
-Sleep 500ms
+# ---- Frame the problem ----
+Type "# Your AI agent needs an API key. Where do you keep it?"
 Enter
+Sleep 1.5s
+Type "ls .env 2>/dev/null || echo '(no .env file on disk — good)'"
+Enter
+Sleep 2s
+Type "clear"
+Enter
+Sleep 500ms
 
-# Wait for the UI to start and show "SETUP VAULT" clearly
+# ---- Open the vault ----
+Type "./rapg"
+Enter
 Sleep 2.5s
 
-# 2. Initial Setup
-# Use a strong password to satisfy zxcvbn requirements
+# Master password (zxcvbn-strong)
 Type "purple-monkey-dishwasher-99"
-Sleep 1s
+Sleep 800ms
 Enter
 Sleep 2s
 
-# 3. Add a Secret with Env Injection
+# ---- Add ANTHROPIC_API_KEY ----
 Type "n"
-Sleep 1.5s
-Type "Production DB"
+Sleep 1.2s
+Type "anthropic"
 Enter
-Sleep 1s
-Type "admin"
+Sleep 700ms
+Type "dev"
 Enter
-Sleep 1s
-# Leave password blank for generation (Index 2)
+Sleep 700ms
+Type "sk-ant-demo-not-a-real-key-1234567890"
 Enter
-Sleep 1s
-# No TOTP (Index 3)
+Sleep 700ms
+# No TOTP
 Enter
-Sleep 1s
-# Set Env Key (Index 4)
-Type "DB_PASSWORD"
+Sleep 700ms
+Type "ANTHROPIC_API_KEY"
 Enter
-Sleep 1s
-# Notes (Index 5) - Enter to Submit
-Type "Production DB Password"
-Sleep 1s
+Sleep 700ms
+# Notes empty -> Enter to submit
 Enter
-Enter
-# Wait for list to update and flash message
-Sleep 3s
+Sleep 2.5s
 
-# 4. Add a Secret with TOTP
+# ---- Add DATABASE_URL ----
 Type "n"
-Sleep 1.5s
-Type "google.com"
+Sleep 1.2s
+Type "postgres"
 Enter
-Sleep 1s
-Type "kanywst@gmail.com"
+Sleep 700ms
+Type "app"
 Enter
-Sleep 1s
-# Leave password blank
+Sleep 700ms
+Type "postgres://user:s3cret@localhost:5432/app"
 Enter
-Sleep 1s
-# Set TOTP Secret
-Type "JBSWY3DPEHPK3PXP"
+Sleep 700ms
+# No TOTP
 Enter
-Sleep 1s
-# No Env Key
+Sleep 700ms
+Type "DATABASE_URL"
 Enter
-Sleep 1s
-# No Notes (Submit)
+Sleep 700ms
 Enter
-Sleep 3s
+Sleep 2.5s
 
-# 5. View Details (Google)
-# "google.com" should be the second item. Move down.
-Type "j" 
-Sleep 1s
-# Enter to View Details (and copy password)
-Enter
-Sleep 2s
-
-# Copy TOTP
-Ctrl+T
-Sleep 1.5s
-
-# 6. Exit TUI
+# ---- Quit TUI ----
 Type "q"
 Sleep 1s
 
-# 7. Demonstrate Process Injection
-# Use single quotes to prevent the outer shell from expanding the variable
-Type "./rapg run -- sh -c 'echo Injected: $DB_PASSWORD'"
+# ---- Inject into a child process (the wedge) ----
+Type "# Inject into any process — agent, dev server, script"
 Enter
-# Wait for "Master Password: " prompt to appear and echo to be disabled
-Sleep 2s
+Sleep 1.5s
+Type "./rapg run -- sh -c 'echo agent sees: $ANTHROPIC_API_KEY'"
+Enter
+Sleep 1.5s
 Type "purple-monkey-dishwasher-99"
 Enter
-Sleep 4s
+Sleep 3s
+
+# ---- Prove disk footprint is zero ----
+Type "ls .env 2>/dev/null || echo '(still no .env on disk)'"
+Enter
+Sleep 3s
