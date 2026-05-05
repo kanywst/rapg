@@ -59,8 +59,8 @@ func TestAllows(t *testing.T) {
 		key  string
 		want bool
 	}{
-		{"no whitelist allows everything", nil, "ANYTHING", true},
-		{"empty whitelist allows everything", []string{}, "ANYTHING", true},
+		{"omitted (nil) allows everything", nil, "ANYTHING", true},
+		{"explicit empty whitelist denies everything", []string{}, "ANYTHING", false},
 		{"whitelist hit", []string{"DB_URL", "API_KEY"}, "DB_URL", true},
 		{"whitelist miss", []string{"DB_URL"}, "API_KEY", false},
 	}
@@ -71,5 +71,23 @@ func TestAllows(t *testing.T) {
 				t.Errorf("Allows(%q) = %v, want %v", tc.key, got, tc.want)
 			}
 		})
+	}
+}
+
+// TestFind_explicitEmptyKeys confirms that BurntSushi/toml preserves the
+// nil-vs-empty distinction Allows() depends on.
+func TestFind_explicitEmptyKeys(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, Filename), "namespace = \"x\"\nkeys = []\n")
+
+	p, _, err := Find(root)
+	if err != nil {
+		t.Fatalf("Find: %v", err)
+	}
+	if p.Keys == nil {
+		t.Fatal("explicit 'keys = []' should round-trip as a non-nil empty slice")
+	}
+	if p.Allows("ANYTHING") {
+		t.Error("explicit empty whitelist should deny all keys")
 	}
 }

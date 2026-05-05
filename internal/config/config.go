@@ -33,9 +33,19 @@ type Project struct {
 }
 
 // Allows reports whether the given env key is permitted by this project's
-// keys whitelist. An empty Keys list means "no whitelist" — all keys allowed.
+// keys whitelist.
+//
+//   - Keys omitted from .rapg.toml entirely (nil slice)  → no whitelist,
+//     all keys allowed.
+//   - Keys = []  (explicit empty slice in TOML)          → whitelist is
+//     active and matches nothing — deny all.
+//   - Keys = ["A", "B", ...]                              → standard
+//     whitelist match.
+//
+// BurntSushi/toml preserves the nil/non-nil distinction (verified), so
+// "I want this project recognized but inject nothing" is expressible.
 func (p *Project) Allows(envKey string) bool {
-	if len(p.Keys) == 0 {
+	if p.Keys == nil {
 		return true
 	}
 	return slices.Contains(p.Keys, envKey)
