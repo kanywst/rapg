@@ -57,6 +57,8 @@ func Write(s Session) error {
 
 	// O_APPEND on POSIX is atomic for writes <= PIPE_BUF; one JSON line is
 	// well under that, so concurrent `rapg run` invocations don't interleave.
+	// #nosec G304 -- path is fixed at ~/.rapg/sessions.jsonl, derived from
+	// os.UserHomeDir(); not influenced by external input.
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
@@ -81,6 +83,7 @@ func Read(limit int) ([]Session, error) {
 	if err != nil {
 		return nil, err
 	}
+	// #nosec G304 -- same fixed-path rationale as Write().
 	data, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		return nil, nil

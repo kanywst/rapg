@@ -359,6 +359,8 @@ func runRedact(target string) {
 	if target == "-" {
 		input, err = io.ReadAll(os.Stdin)
 	} else {
+		// #nosec G304 -- target is the file the user explicitly asked
+		// rapg to redact; the user IS the trust boundary in a CLI tool.
 		input, err = os.ReadFile(target)
 	}
 	if err != nil {

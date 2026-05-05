@@ -123,14 +123,44 @@ After installing, `cd` between project directories prints:
 [rapg] left project: myapp
 ```
 
+## Transcript hygiene (`rapg redact`)
+
+Before pasting an agent transcript into a bug report, scrub vault values from it:
+
+```bash
+rapg redact ~/.claude/transcripts/today.jsonl > redacted.jsonl
+# or, against the clipboard:
+pbpaste | rapg redact - | pbcopy
+```
+
+Each occurrence of a vault `Password` becomes `[REDACTED:<env_key>]` (or `[REDACTED:<service>/<username>]` if the entry has no env key). Values shorter than 8 characters are skipped to avoid false positives. The match count is reported on stderr so it doesn't contaminate the redacted output stream.
+
+Scope is the whole vault, regardless of `.rapg.toml` — when checking a transcript, you want maximum coverage, not project boundaries.
+
+## Audit log (`rapg session log`)
+
+Every `rapg run -- <cmd>` appends one line to `~/.rapg/sessions.jsonl` recording the command, project namespace, env keys injected (**not** their values), exit code, pid, and cwd. Read the trail back:
+
+```bash
+rapg session log
+# 2026-05-05 14:30:12  [myapp]  claude code --print  exit=0  keys: ANTHROPIC_API_KEY,DB_URL
+# 2026-05-05 14:32:05  [-]       npm run dev          exit=0  keys: -
+
+rapg session log --limit 100
+```
+
+The log is plaintext metadata at mode `0600`. To wipe it, just `rm ~/.rapg/sessions.jsonl` — `rapg run` will recreate it on the next invocation.
+
 ## Subcommands
 
 | Command | Purpose |
 | --- | --- |
 | `rapg` | Launch the TUI |
-| `rapg run -- <cmd>` | Inject secrets into a child process (respects `.rapg.toml`) |
+| `rapg run -- <cmd>` | Inject secrets into a child process (respects `.rapg.toml`, records to session log) |
 | `rapg gen [length]` | Generate a cryptographically random password |
 | `rapg export` | Print env-tagged secrets as `KEY=value` lines (respects `.rapg.toml`) |
+| `rapg redact <file\|->` | Mask vault values in a file or stdin; output to stdout |
+| `rapg session log` | Show recent `rapg run` sessions from `~/.rapg/sessions.jsonl` |
 | `rapg project` | Print the current project's namespace; exit 1 if not in a project |
 | `rapg hook <shell>` | Print a `cd` notifier snippet for `zsh` / `bash` / `fish` |
 | `rapg nuke` | Wipe the local vault after confirmation |
@@ -139,10 +169,8 @@ After installing, `cd` between project directories prints:
 
 Next on the agent-leakage track:
 
-1. `rapg redact <file>` — scan a file for vault values and mask them; use this on agent transcripts before sharing.
-2. `rapg session log` — audit which command saw which secret and when.
-3. `rapg proxy --provider anthropic|openai` (experimental) — local HTTP proxy that holds the real API key, so agents only ever see a short-lived proxy token.
-4. Direnv-style auto-injection on `cd`, with a TPM / Touch ID / Secure Enclave-backed key cache.
+1. `rapg proxy --provider anthropic|openai` (experimental) — local HTTP proxy that holds the real API key, so agents only ever see a short-lived proxy token.
+2. Direnv-style auto-injection on `cd`, with a TPM / Touch ID / Secure Enclave-backed key cache.
 
 ## Security
 
