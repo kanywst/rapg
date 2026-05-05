@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"text/tabwriter"
 
 	"github.com/awnumar/memguard"
 	tea "github.com/charmbracelet/bubbletea"
@@ -210,6 +211,35 @@ Designed for shell hooks — use 'rapg hook <shell>' to install one.`,
 		},
 	}
 
+	sessionCmd := &cobra.Command{
+		Use:   "session",
+		Short: "Inspect the rapg run audit log",
+	}
+	var sessionLimit int
+	sessionLogCmd := &cobra.Command{
+		Use:   "log",
+		Short: "Show recent rapg run sessions (most recent last)",
+		Long: `Print the audit trail of rapg run invocations from
+~/.rapg/sessions.jsonl. Each line records the command, project namespace,
+which env keys were injected (NOT their values), and the exit code.
+
+Default shows the last 20 entries; use --limit to widen.`,
+		Run: func(cmd *cobra.Command, args []string) {
+			sessions, err := audit.Read(sessionLimit)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error reading session log: %v\n", err)
+				os.Exit(1)
+			}
+			if len(sessions) == 0 {
+				fmt.Fprintln(os.Stderr, "No sessions recorded yet. Run 'rapg run -- <cmd>' to populate the log.")
+				return
+			}
+			printSessions(sessions)
+		},
+	}
+	sessionLogCmd.Flags().IntVar(&sessionLimit, "limit", 20, "max number of recent sessions to show; <=0 means all")
+	sessionCmd.AddCommand(sessionLogCmd)
+
 	hookCmd := &cobra.Command{
 		Use:   "hook <shell>",
 		Short: "Print a shell hook that announces .rapg.toml projects on cd",
@@ -240,7 +270,7 @@ Install with:
 		},
 	}
 
-	rootCmd.AddCommand(genCmd, nukeCmd, exportCmd, runCmd, projectCmd, hookCmd)
+	rootCmd.AddCommand(genCmd, nukeCmd, exportCmd, runCmd, projectCmd, hookCmd, sessionCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
@@ -272,6 +302,34 @@ func unlockVault() {
 	if err := core.UnlockVault(passwordBuffer.Bytes()); err != nil {
 		fmt.Fprintln(os.Stderr, "Invalid password.")
 		os.Exit(1)
+	}
+}
+
+// printSessions writes a tab-aligned, human-readable rendering of the
+// session log to stdout. One line per session, ordered oldest to newest.
+func printSessions(sessions []audit.Session) {
+	tw := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+	defer tw.Flush()
+	for _, s := range sessions {
+		ns := s.Namespace
+		if ns == "" {
+			ns = "-"
+		}
+		keys := strings.Join(s.EnvKeys, ",")
+		if keys == "" {
+			keys = "-"
+		}
+		cmdLine := s.Command
+		if len(s.Args) > 0 {
+			cmdLine += " " + strings.Join(s.Args, " ")
+		}
+		fmt.Fprintf(tw, "%s\t[%s]\t%s\texit=%d\tkeys: %s\n",
+			s.Timestamp.Local().Format("2006-01-02 15:04:05"),
+			ns,
+			cmdLine,
+			s.ExitCode,
+			keys,
+		)
 	}
 }
 
