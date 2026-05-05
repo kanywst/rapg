@@ -1,26 +1,29 @@
 package storage
 
 import (
-	"os"
 	"testing"
 )
 
 // setupTestDB creates a temporary directory, sets HOME to it, and initializes the DB.
 // It returns a cleanup function that should be deferred.
 func setupTestDB(t *testing.T) func() {
+	t.Helper()
 	tmpDir := t.TempDir()
-
-	// Mock HOME to point to temp dir
-	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
+	t.Setenv("HOME", tmpDir)
 
 	if err := InitDB(); err != nil {
 		t.Fatalf("InitDB failed: %v", err)
 	}
 
 	return func() {
-		os.Setenv("HOME", originalHome)
-		// DB cleanup if necessary (GORM usually handles connection pooling, but file cleanup is done by t.TempDir)
+		// Close the underlying *sql.DB so the sqlite file handle is released
+		// before t.TempDir tries to remove the directory.
+		if DB != nil {
+			if sqlDB, err := DB.DB(); err == nil {
+				_ = sqlDB.Close()
+			}
+			DB = nil
+		}
 	}
 }
 
