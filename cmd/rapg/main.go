@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,6 +18,7 @@ import (
 	"github.com/kanywst/rapg/internal/audit"
 	"github.com/kanywst/rapg/internal/config"
 	"github.com/kanywst/rapg/internal/core"
+	"github.com/kanywst/rapg/internal/redact"
 	"github.com/kanywst/rapg/internal/storage"
 	"github.com/kanywst/rapg/internal/ui"
 	"github.com/spf13/cobra"
@@ -211,6 +213,28 @@ Designed for shell hooks — use 'rapg hook <shell>' to install one.`,
 		},
 	}
 
+	redactCmd := &cobra.Command{
+		Use:   "redact <file|->",
+		Short: "Mask vault values appearing in a file (use on agent transcripts before sharing)",
+		Long: `Read <file> (or stdin if '-') and replace every occurrence of any vault
+secret value with '[REDACTED:<label>]'. Output goes to stdout. Match count
+is reported to stderr.
+
+Scans every entry in the vault, regardless of namespace or .rapg.toml — the
+goal is maximum coverage when checking what a transcript might have leaked.
+Values shorter than 8 characters are skipped to avoid false positives like
+masking the word "test".
+
+Examples:
+
+    rapg redact ~/.claude/transcripts/today.jsonl > redacted.jsonl
+    pbpaste | rapg redact - | pbcopy`,
+		Args: cobra.ExactArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			runRedact(args[0])
+		},
+	}
+
 	sessionCmd := &cobra.Command{
 		Use:   "session",
 		Short: "Inspect the rapg run audit log",
@@ -270,7 +294,7 @@ Install with:
 		},
 	}
 
-	rootCmd.AddCommand(genCmd, nukeCmd, exportCmd, runCmd, projectCmd, hookCmd, sessionCmd)
+	rootCmd.AddCommand(genCmd, nukeCmd, exportCmd, runCmd, projectCmd, hookCmd, sessionCmd, redactCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
@@ -303,6 +327,48 @@ func unlockVault() {
 		fmt.Fprintln(os.Stderr, "Invalid password.")
 		os.Exit(1)
 	}
+}
+
+// runRedact executes 'rapg redact <file|->'. It unlocks the vault, builds
+// a list of (value, label) pairs from every entry that has a non-empty
+// password, runs the redactor, and writes the masked output to stdout.
+// Match count goes to stderr so it never contaminates the output stream.
+func runRedact(target string) {
+	unlockVault()
+
+	entries, err := core.ListEntries()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error listing entries: %v\n", err)
+		os.Exit(1)
+	}
+
+	var secrets []redact.Secret
+	for _, e := range entries {
+		secret, err := core.GetEntry(e)
+		if err != nil || secret.Password == "" {
+			continue
+		}
+		label := secret.EnvKey
+		if label == "" {
+			label = e.Service + "/" + e.Username
+		}
+		secrets = append(secrets, redact.Secret{Value: secret.Password, Label: label})
+	}
+
+	var input []byte
+	if target == "-" {
+		input, err = io.ReadAll(os.Stdin)
+	} else {
+		input, err = os.ReadFile(target)
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
+		os.Exit(1)
+	}
+
+	out, n := redact.Redact(string(input), secrets)
+	fmt.Print(out)
+	fmt.Fprintf(os.Stderr, "[rapg] redacted %d distinct value(s) from %d candidate(s)\n", n, len(secrets))
 }
 
 // printSessions writes a tab-aligned, human-readable rendering of the
