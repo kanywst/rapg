@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/awnumar/memguard"
+	"github.com/kanywst/rapg/internal/config"
 	"github.com/kanywst/rapg/internal/crypto"
 	"github.com/kanywst/rapg/internal/storage"
 )
@@ -165,8 +166,16 @@ func GetEntry(entry storage.PasswordEntry) (*storage.SecretData, error) {
 	return &data, nil
 }
 
-// GetEnvVars retrieves all secrets that have an EnvKey set.
-func GetEnvVars() (map[string]string, error) {
+// GetEnvVars retrieves the env-tagged secrets that should be injected into
+// a child process for the given project context.
+//
+// - project == nil   → only entries with an empty Namespace ('global').
+// - project != nil   → only entries whose Namespace matches project.Namespace,
+//                      filtered further by project.Allows(EnvKey).
+//
+// This deliberately scopes secrets: an entry tagged for project A must never
+// leak into a run that has no project config or has project B's config.
+func GetEnvVars(project *config.Project) (map[string]string, error) {
 	if SessionKey == nil {
 		return nil, errors.New("vault locked")
 	}
@@ -178,13 +187,24 @@ func GetEnvVars() (map[string]string, error) {
 
 	envVars := make(map[string]string)
 	for _, entry := range entries {
+		if project == nil {
+			if entry.Namespace != "" {
+				continue
+			}
+		} else {
+			if entry.Namespace != project.Namespace {
+				continue
+			}
+		}
+
 		secret, err := GetEntry(entry)
-		if err != nil {
-			continue // Skip corrupted entries
+		if err != nil || secret.EnvKey == "" {
+			continue
 		}
-		if secret.EnvKey != "" {
-			envVars[secret.EnvKey] = secret.Password
+		if project != nil && !project.Allows(secret.EnvKey) {
+			continue
 		}
+		envVars[secret.EnvKey] = secret.Password
 	}
 	return envVars, nil
 }

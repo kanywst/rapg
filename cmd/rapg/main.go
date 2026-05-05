@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/awnumar/memguard"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/kanywst/rapg/internal/config"
 	"github.com/kanywst/rapg/internal/core"
 	"github.com/kanywst/rapg/internal/storage"
 	"github.com/kanywst/rapg/internal/ui"
@@ -107,9 +109,10 @@ func main() {
 		Use:   "export",
 		Short: "Export secrets with EnvKey set to .env format",
 		Run: func(cmd *cobra.Command, args []string) {
+			project := loadProject()
 			unlockVault()
 
-			envVars, err := core.GetEnvVars()
+			envVars, err := core.GetEnvVars(project)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error getting env vars: %v\n", err)
 				os.Exit(1)
@@ -134,9 +137,10 @@ func main() {
 Note: Secrets configured in Rapg will override any existing environment variables with the same name.`,
 		Args: cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
+			project := loadProject()
 			unlockVault()
 
-			envVars, err := core.GetEnvVars()
+			envVars, err := core.GetEnvVars(project)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error getting env vars: %v\n", err)
 				os.Exit(1)
@@ -212,4 +216,25 @@ func unlockVault() {
 		fmt.Fprintln(os.Stderr, "Invalid password.")
 		os.Exit(1)
 	}
+}
+
+// loadProject resolves the nearest .rapg.toml from the current working
+// directory. Returns nil if none was found (legacy behavior: secrets in the
+// global namespace are injected). On parse failure, returns nil and warns
+// rather than aborting — a malformed config should not lock the user out.
+func loadProject() *config.Project {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil
+	}
+	p, path, err := config.Find(cwd)
+	if errors.Is(err, config.ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[rapg] warning: ignoring %s: %v\n", path, err)
+		return nil
+	}
+	fmt.Fprintf(os.Stderr, "[rapg] project: %s (%s)\n", p.Namespace, path)
+	return p
 }
