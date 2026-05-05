@@ -161,10 +161,8 @@ func GetEntry(entry storage.PasswordEntry) (*storage.SecretData, error) {
 	}
 
 	var data storage.SecretData
-	// Try to unmarshal as JSON first for new format.
 	if err := json.Unmarshal(decrypted, &data); err != nil {
-		// If unmarshal fails, assume it's a legacy plaintext password.
-		data = storage.SecretData{Password: string(decrypted)}
+		return nil, fmt.Errorf("decrypt: malformed secret payload: %w", err)
 	}
 
 	return &data, nil

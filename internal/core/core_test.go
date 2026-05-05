@@ -3,7 +3,6 @@ package core
 import (
 	"testing"
 
-	"github.com/kanywst/rapg/internal/crypto"
 	"github.com/kanywst/rapg/internal/storage"
 )
 
@@ -152,53 +151,5 @@ func TestGenerateRandomPassword(t *testing.T) {
 	p2, _ := GenerateRandomPassword(16)
 	if p1 == p2 {
 		t.Error("Random passwords should not be identical")
-	}
-}
-
-func TestLegacyFallback(t *testing.T) {
-	cleanup := setupCoreTest(t)
-	defer cleanup()
-	InitializeVault([]byte("p"))
-
-	// 1. Valid JSON (New format)
-	AddEntry("new", "u", storage.SecretData{Password: "pass123"})
-
-	// 2. Plaintext (Legacy format) - Mock by bypassing AddEntry
-	// Since AddEntry always marshals to JSON, we need to manually create an entry in DB
-	mockKey := SessionKey.Bytes()
-	fromCrypto, _ := crypto.EncryptAESGCM([]byte("legacy-pass"), mockKey)
-	storage.DB.Create(&storage.PasswordEntry{
-		Service: "legacy",
-		Cipher:  fromCrypto,
-	})
-
-	// 3. Valid JSON but wrong schema (e.g. legacy pass that happens to be JSON)
-	// This will now NOT fallback, which is the intended robust behavior.
-	// 4. New format with empty password
-	AddEntry("empty", "u", storage.SecretData{Password: ""})
-
-	entries, _ := ListEntries()
-
-	for _, e := range entries {
-		ret, err := GetEntry(e)
-		if err != nil {
-			t.Errorf("GetEntry failed for %s: %v", e.Service, err)
-			continue
-		}
-
-		switch e.Service {
-		case "new":
-			if ret.Password != "pass123" {
-				t.Errorf("New format failed: got %s", ret.Password)
-			}
-		case "legacy":
-			if ret.Password != "legacy-pass" {
-				t.Errorf("Legacy format failed: got %s", ret.Password)
-			}
-		case "empty":
-			if ret.Password != "" {
-				t.Errorf("Empty password failed: got %s", ret.Password)
-			}
-		}
 	}
 }
