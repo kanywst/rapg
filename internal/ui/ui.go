@@ -324,7 +324,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *Model) loadSelectedDetail() {
 	if i, ok := m.list.SelectedItem().(item); ok {
-		entry, err := storage.Find(i.service, i.username)
+		entry, err := storage.FindByID(i.id)
 		if err == nil {
 			secret, err := core.GetEntry(*entry)
 			if err == nil {
@@ -400,7 +400,9 @@ func (m *Model) submitAdd() tea.Cmd {
 		Notes:    notes,
 	}
 
-	if err := core.AddEntry(service, username, data); err != nil {
+	// Namespace stays empty in the TUI form for now; project-scoped entries
+	// will be added in PR-B's TUI commit.
+	if err := core.AddEntry("", service, username, data); err != nil {
 		return m.flashMessage("Add failed: " + err.Error())
 	}
 	m.list.SetItems(loadItems())

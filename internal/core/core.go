@@ -135,12 +135,13 @@ func GenerateRandomPassword(length int) (string, error) {
 	return string(ret), nil
 }
 
-// AddEntry encrypts and stores a password.
-func AddEntry(service, username string, data storage.SecretData) error {
+// AddEntry encrypts and stores a password. namespace may be empty
+// (means "global" / visible without a project config).
+func AddEntry(namespace, service, username string, data storage.SecretData) error {
 	if SessionKey == nil {
 		return errors.New("vault locked")
 	}
-	return storage.Create(service, username, data, SessionKey.Bytes(), crypto.EncryptAESGCM)
+	return storage.Create(namespace, service, username, data, SessionKey.Bytes(), crypto.EncryptAESGCM)
 }
 
 // GetEntry returns the decrypted secret data.

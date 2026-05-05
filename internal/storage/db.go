@@ -20,11 +20,15 @@ type SecretData struct {
 	EnvKey   string `json:"env_key,omitempty"`
 }
 
+// PasswordEntry is one row in the vault. Namespace scopes the entry to a
+// project (matched by .rapg.toml). An empty Namespace means "global" — visible
+// to any `rapg run` invocation that has no project config.
 type PasswordEntry struct {
 	gorm.Model
-	Service  string `gorm:"uniqueIndex:idx_service_username"`
-	Username string `gorm:"uniqueIndex:idx_service_username"`
-	// Cipher contains the encrypted JSON of SecretData
+	Namespace string `gorm:"uniqueIndex:idx_namespace_service_username,priority:1"`
+	Service   string `gorm:"uniqueIndex:idx_namespace_service_username,priority:2"`
+	Username  string `gorm:"uniqueIndex:idx_namespace_service_username,priority:3"`
+	// Cipher contains the encrypted JSON of SecretData.
 	Cipher []byte
 }
 
@@ -59,6 +63,12 @@ func InitDB() error {
 		return fmt.Errorf("failed to migrate database: %w", err)
 	}
 
+	// Pre-v4 schemas had a unique index on (Service, Username). v4 widens
+	// uniqueness to (Namespace, Service, Username) so the same Service can
+	// exist in multiple project namespaces. Drop the legacy index if present;
+	// safe to ignore the error on fresh DBs that never had it.
+	db.Exec("DROP INDEX IF EXISTS idx_service_username")
+
 	DB = db
 	return nil
 }
@@ -79,7 +89,7 @@ func GetMeta(key string) ([]byte, error) {
 
 // Entry Operations
 
-func Create(service, username string, secret SecretData, key []byte, encryptFunc func([]byte, []byte) ([]byte, error)) error {
+func Create(namespace, service, username string, secret SecretData, key []byte, encryptFunc func([]byte, []byte) ([]byte, error)) error {
 	// #nosec G117 -- The marshaled struct contains a "Password" field but
 	// it is immediately encrypted with AES-256-GCM by encryptFunc on the
 	// next line. Plaintext never leaves this stack frame.
@@ -94,9 +104,10 @@ func Create(service, username string, secret SecretData, key []byte, encryptFunc
 	}
 
 	entry := PasswordEntry{
-		Service:  service,
-		Username: username,
-		Cipher:   encrypted,
+		Namespace: namespace,
+		Service:   service,
+		Username:  username,
+		Cipher:    encrypted,
 	}
 	return DB.Create(&entry).Error
 }
@@ -115,9 +126,20 @@ func Delete(id uint) error {
 	return DB.Unscoped().Delete(&PasswordEntry{}, id).Error
 }
 
-func Find(service, username string) (*PasswordEntry, error) {
+func Find(namespace, service, username string) (*PasswordEntry, error) {
 	var entry PasswordEntry
-	if err := DB.Where("service = ? AND username = ?", service, username).First(&entry).Error; err != nil {
+	if err := DB.Where("namespace = ? AND service = ? AND username = ?", namespace, service, username).First(&entry).Error; err != nil {
+		return nil, err
+	}
+	return &entry, nil
+}
+
+// FindByID returns a single entry by its primary key. Used by callers that
+// already hold an ID (e.g., the TUI selection list) and don't need to
+// re-query by composite keys that are no longer globally unique.
+func FindByID(id uint) (*PasswordEntry, error) {
+	var entry PasswordEntry
+	if err := DB.First(&entry, id).Error; err != nil {
 		return nil, err
 	}
 	return &entry, nil
