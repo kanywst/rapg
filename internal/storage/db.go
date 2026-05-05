@@ -65,9 +65,13 @@ func InitDB() error {
 
 	// Pre-v4 schemas had a unique index on (Service, Username). v4 widens
 	// uniqueness to (Namespace, Service, Username) so the same Service can
-	// exist in multiple project namespaces. Drop the legacy index if present;
-	// safe to ignore the error on fresh DBs that never had it.
-	db.Exec("DROP INDEX IF EXISTS idx_service_username")
+	// exist in multiple project namespaces. Drop the legacy index if present.
+	// IF EXISTS makes it a no-op on fresh DBs; any other error (lock,
+	// corruption) is surfaced as a startup warning so it isn't silently
+	// swallowed.
+	if err := db.Exec("DROP INDEX IF EXISTS idx_service_username").Error; err != nil {
+		fmt.Fprintf(os.Stderr, "[rapg] warning: could not drop legacy idx_service_username: %v\n", err)
+	}
 
 	DB = db
 	return nil
