@@ -64,15 +64,22 @@ func Write(s Session) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 
 	line, err := json.Marshal(s)
 	if err != nil {
+		_ = f.Close()
 		return err
 	}
 	line = append(line, '\n')
 	if _, err := f.Write(line); err != nil {
+		_ = f.Close()
 		return fmt.Errorf("append session log: %w", err)
+	}
+	// Surface Close errors explicitly: on some filesystems, write
+	// finalization (and thus the real I/O failure, if any) only happens
+	// at close time.
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("close session log: %w", err)
 	}
 	return nil
 }
