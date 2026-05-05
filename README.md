@@ -182,8 +182,6 @@ Next on the agent-leakage track:
 | Memory protection | Master key held in a `memguard` LockedBuffer and zeroed on exit |
 | At-rest layout | Single SQLite file at `~/.rapg/rapg.db`, directory mode `0700` |
 
-See [`TECH.md`](TECH.md) for the full crypto spec.
-
 ## License
 
 MIT — see [LICENSE](LICENSE).
