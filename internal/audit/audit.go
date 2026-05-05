@@ -8,6 +8,7 @@
 package audit
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -77,23 +78,27 @@ func Write(s Session) error {
 }
 
 // Read returns the last `limit` sessions, oldest first. limit <= 0 returns
-// everything in the file.
+// everything in the file. Streams via bufio.Scanner with a sliding window
+// so memory stays bounded by `limit` even on large logs.
 func Read(limit int) ([]Session, error) {
 	path, err := LogPath()
 	if err != nil {
 		return nil, err
 	}
 	// #nosec G304 -- same fixed-path rationale as Write().
-	data, err := os.ReadFile(path)
+	f, err := os.Open(path)
 	if os.IsNotExist(err) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
 
 	var all []Session
-	for _, line := range splitLines(data) {
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Bytes()
 		if len(line) == 0 {
 			continue
 		}
@@ -104,26 +109,9 @@ func Read(limit int) ([]Session, error) {
 			continue
 		}
 		all = append(all, s)
-	}
-	if limit > 0 && len(all) > limit {
-		all = all[len(all)-limit:]
-	}
-	return all, nil
-}
-
-// splitLines is a small helper that avoids pulling in bufio.Scanner just to
-// split on '\n'. Each returned slice references the original buffer.
-func splitLines(b []byte) [][]byte {
-	var out [][]byte
-	start := 0
-	for i, c := range b {
-		if c == '\n' {
-			out = append(out, b[start:i])
-			start = i + 1
+		if limit > 0 && len(all) > limit {
+			all = all[1:]
 		}
 	}
-	if start < len(b) {
-		out = append(out, b[start:])
-	}
-	return out
+	return all, scanner.Err()
 }
