@@ -52,14 +52,20 @@ const (
 )
 
 type item struct {
-	id       uint
-	service  string
-	username string
+	id        uint
+	service   string
+	username  string
+	namespace string
 }
 
-func (i item) Title() string       { return i.service }
-func (i item) Description() string { return i.username }
-func (i item) FilterValue() string { return i.service + " " + i.username }
+func (i item) Title() string { return i.service }
+func (i item) Description() string {
+	if i.namespace != "" {
+		return i.username + " • " + i.namespace
+	}
+	return i.username
+}
+func (i item) FilterValue() string { return i.service + " " + i.username + " " + i.namespace }
 
 type Model struct {
 	state         sessionState
@@ -72,6 +78,7 @@ type Model struct {
 	windowHeight  int
 
 	// Detail View
+	selectedEntry  *storage.PasswordEntry
 	selectedSecret *storage.SecretData
 	viewport       viewport.Model
 
@@ -88,9 +95,21 @@ func NewModel() Model {
 	l.SetFilteringEnabled(true)
 	l.Styles.Title = titleStyle
 
-	// Add Form Inputs
-	inputs := make([]textinput.Model, 6)
-	labels := []string{"Service", "Username", "Password (Empty to Gen)", "TOTP Secret (Optional)", "Env Key (e.g. DATABASE_URL)", "Notes"}
+	// Add Form Inputs.
+	// Namespace sits next to Env Key — both are env-injection metadata.
+	// An entry with Namespace="" is global; otherwise it is only injected
+	// when 'rapg run' is invoked from a directory whose .rapg.toml declares
+	// the same namespace.
+	inputs := make([]textinput.Model, 7)
+	labels := []string{
+		"Service",
+		"Username",
+		"Password (Empty to Gen)",
+		"TOTP Secret (Optional)",
+		"Namespace (Optional, e.g. myapp)",
+		"Env Key (e.g. DATABASE_URL)",
+		"Notes",
+	}
 
 	for i := range inputs {
 		inputs[i] = textinput.New()
@@ -129,7 +148,7 @@ func loadItems() []list.Item {
 	}
 	items := make([]list.Item, len(entries))
 	for i, e := range entries {
-		items[i] = item{id: e.ID, service: e.Service, username: e.Username}
+		items[i] = item{id: e.ID, service: e.Service, username: e.Username, namespace: e.Namespace}
 	}
 	return items
 }
@@ -232,6 +251,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "up", "k", "down", "j":
 				m.list, cmd = m.list.Update(msg)
 				// Clear detail view on navigation to avoid lag from decryption
+				m.selectedEntry = nil
 				m.selectedSecret = nil
 				m.viewport.SetContent("")
 				return m, cmd
@@ -328,6 +348,7 @@ func (m *Model) loadSelectedDetail() {
 		if err == nil {
 			secret, err := core.GetEntry(*entry)
 			if err == nil {
+				m.selectedEntry = entry
 				m.selectedSecret = secret
 				m.updateDetailView()
 			}
@@ -345,6 +366,11 @@ func (m *Model) updateDetailView() {
 	var b strings.Builder
 
 	b.WriteString(titleStyle.Render("DETAILS") + "\n\n")
+
+	// Namespace (if set on the entry)
+	if m.selectedEntry != nil && m.selectedEntry.Namespace != "" {
+		b.WriteString(labelStyle.Render("Namespace:") + " " + valueStyle.Render(m.selectedEntry.Namespace) + "\n")
+	}
 
 	// Password
 	b.WriteString(labelStyle.Render("Password: ") + valueStyle.Render("••••••••") + " (Enter to copy)\n")
@@ -378,8 +404,9 @@ func (m *Model) submitAdd() tea.Cmd {
 	username := m.inputs[1].Value()
 	pass := m.inputs[2].Value()
 	totpSecret := m.inputs[3].Value()
-	envKey := m.inputs[4].Value()
-	notes := m.inputs[5].Value()
+	namespace := m.inputs[4].Value()
+	envKey := m.inputs[5].Value()
+	notes := m.inputs[6].Value()
 
 	if service == "" || username == "" {
 		return nil
@@ -400,9 +427,7 @@ func (m *Model) submitAdd() tea.Cmd {
 		Notes:    notes,
 	}
 
-	// Namespace stays empty in the TUI form for now; project-scoped entries
-	// will be added in PR-B's TUI commit.
-	if err := core.AddEntry("", service, username, data); err != nil {
+	if err := core.AddEntry(namespace, service, username, data); err != nil {
 		return m.flashMessage("Add failed: " + err.Error())
 	}
 	m.list.SetItems(loadItems())
