@@ -342,10 +342,23 @@ func runRedact(target string) {
 		os.Exit(1)
 	}
 
-	var secrets []redact.Secret
+	var (
+		secrets []redact.Secret
+		skipped int
+	)
 	for _, e := range entries {
 		secret, err := core.GetEntry(e)
-		if err != nil || secret.Password == "" {
+		if err != nil {
+			// Decryption failure on a real entry is meaningful: the
+			// entry's value is in the vault but we couldn't read it,
+			// so anything matching it in the input is NOT going to
+			// get redacted. Surface it loudly so the user doesn't
+			// trust the output blindly.
+			fmt.Fprintf(os.Stderr, "[rapg] warning: skipping entry %q: %v\n", e.Service+"/"+e.Username, err)
+			skipped++
+			continue
+		}
+		if secret.Password == "" {
 			continue
 		}
 		label := secret.EnvKey
@@ -371,6 +384,17 @@ func runRedact(target string) {
 	out, n := redact.Redact(string(input), secrets)
 	fmt.Print(out)
 	fmt.Fprintf(os.Stderr, "[rapg] redacted %d distinct value(s) from %d candidate(s)\n", n, len(secrets))
+	if skipped > 0 {
+		fmt.Fprintf(os.Stderr, "[rapg] WARNING: %d entr%s could not be decrypted; output may still contain their values\n",
+			skipped, plural(skipped, "y", "ies"))
+	}
+}
+
+func plural(n int, singular, pluralForm string) string {
+	if n == 1 {
+		return singular
+	}
+	return pluralForm
 }
 
 // printSessions writes a tab-aligned, human-readable rendering of the
