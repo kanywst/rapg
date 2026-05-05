@@ -1,7 +1,7 @@
 .PHONY: build run test clean fmt vet install demo
 
 BINARY_NAME=rapg
-MAIN_PATH=cmd/rapg/main.go
+MAIN_PATH=./cmd/rapg
 
 # Build the binary
 build:
