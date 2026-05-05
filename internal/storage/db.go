@@ -80,6 +80,9 @@ func GetMeta(key string) ([]byte, error) {
 // Entry Operations
 
 func Create(service, username string, secret SecretData, key []byte, encryptFunc func([]byte, []byte) ([]byte, error)) error {
+	// #nosec G117 -- The marshaled struct contains a "Password" field but
+	// it is immediately encrypted with AES-256-GCM by encryptFunc on the
+	// next line. Plaintext never leaves this stack frame.
 	jsonData, err := json.Marshal(secret)
 	if err != nil {
 		return err
