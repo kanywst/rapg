@@ -92,7 +92,9 @@ func TestRead_skipsMalformedLines(t *testing.T) {
 	if _, err := f.Write([]byte("not json\n")); err != nil {
 		t.Fatal(err)
 	}
-	f.Close()
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := Write(Session{Command: "ok-2"}); err != nil {
 		t.Fatal(err)
