@@ -258,7 +258,12 @@ Default shows the last 20 entries; use --limit to widen.`,
 				fmt.Fprintln(os.Stderr, "No sessions recorded yet. Run 'rapg run -- <cmd>' to populate the log.")
 				return
 			}
-			printSessions(sessions)
+			if err := printSessions(sessions); err != nil {
+				// Most likely a broken pipe (e.g. piped to `head`).
+				// Exit quietly with non-zero so callers can detect it
+				// without flooding stderr.
+				os.Exit(1)
+			}
 		},
 	}
 	sessionLogCmd.Flags().IntVar(&sessionLimit, "limit", 20, "max number of recent sessions to show; <=0 means all")
@@ -399,9 +404,10 @@ func plural(n int, singular, pluralForm string) string {
 
 // printSessions writes a tab-aligned, human-readable rendering of the
 // session log to stdout. One line per session, ordered oldest to newest.
-func printSessions(sessions []audit.Session) {
+// Returns any error from writing to stdout (typically a broken pipe when
+// piped through `head` etc.) or from the tabwriter flush.
+func printSessions(sessions []audit.Session) error {
 	tw := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
-	defer tw.Flush()
 	for _, s := range sessions {
 		ns := s.Namespace
 		if ns == "" {
@@ -415,14 +421,17 @@ func printSessions(sessions []audit.Session) {
 		if len(s.Args) > 0 {
 			cmdLine += " " + strings.Join(s.Args, " ")
 		}
-		fmt.Fprintf(tw, "%s\t[%s]\t%s\texit=%d\tkeys: %s\n",
+		if _, err := fmt.Fprintf(tw, "%s\t[%s]\t%s\texit=%d\tkeys: %s\n",
 			s.Timestamp.Local().Format("2006-01-02 15:04:05"),
 			ns,
 			cmdLine,
 			s.ExitCode,
 			keys,
-		)
+		); err != nil {
+			return err
+		}
 	}
+	return tw.Flush()
 }
 
 // recordSession appends one entry to ~/.rapg/sessions.jsonl describing the
