@@ -16,7 +16,7 @@ builds:
     goarch:
       - amd64
       - arm64
-    main: ./cmd/rapg/main.go
+    main: ./cmd/rapg
     ldflags:
       - -s -w
 

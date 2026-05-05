@@ -42,7 +42,9 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
 
       - name: Build rapg
-        run: go build -o rapg cmd/rapg/main.go
+        # Build the whole package, not just main.go — cmd/rapg now spans
+        # multiple files (main.go, hooks.go, ...).
+        run: go build -o rapg ./cmd/rapg
 
       - name: Validate tape
         uses: charmbracelet/vhs-action@v2
