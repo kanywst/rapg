@@ -25,6 +25,10 @@ Thumbs.db
 *.swp
 *.swo
 
+# Claude Code (local notes, not for commit)
+CLAUDE.md
+.claude/
+
 # Go
 go.work
 go.work.sum
