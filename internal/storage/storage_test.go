@@ -143,4 +143,3 @@ func TestNamespaceUniqueness(t *testing.T) {
 		t.Errorf("Find returned the same row across namespaces: %d", a.ID)
 	}
 }
-

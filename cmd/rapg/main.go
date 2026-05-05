@@ -204,8 +204,8 @@ Designed for shell hooks — use 'rapg hook <shell>' to install one.`,
 	}
 
 	hookCmd := &cobra.Command{
-		Use:       "hook <shell>",
-		Short:     "Print a shell hook that announces .rapg.toml projects on cd",
+		Use:   "hook <shell>",
+		Short: "Print a shell hook that announces .rapg.toml projects on cd",
 		Long: `Print a shell snippet that, when sourced, prints '[rapg] entered project: X'
 when you 'cd' into a directory whose .rapg.toml declares a namespace, and
 '[rapg] left project: X' when you leave it. Purely informational — does
