@@ -93,7 +93,7 @@ func TestEntryManagement(t *testing.T) {
 	}
 
 	// Add
-	if err := AddEntry(svc, user, data); err != nil {
+	if err := AddEntry("", svc, user, data); err != nil {
 		t.Fatalf("AddEntry failed: %v", err)
 	}
 
@@ -122,9 +122,9 @@ func TestEnvVars(t *testing.T) {
 	defer cleanup()
 	InitializeVault([]byte("p"))
 
-	AddEntry("db", "user", storage.SecretData{Password: "postgres://...", EnvKey: "DATABASE_URL"})
-	AddEntry("api", "key", storage.SecretData{Password: "12345", EnvKey: "API_KEY"})
-	AddEntry("other", "foo", storage.SecretData{Password: "ignored", EnvKey: ""})
+	AddEntry("", "db", "user", storage.SecretData{Password: "postgres://...", EnvKey: "DATABASE_URL"})
+	AddEntry("", "api", "key", storage.SecretData{Password: "12345", EnvKey: "API_KEY"})
+	AddEntry("", "other", "foo", storage.SecretData{Password: "ignored", EnvKey: ""})
 
 	vars, err := GetEnvVars()
 	if err != nil {

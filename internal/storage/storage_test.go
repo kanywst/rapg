@@ -67,13 +67,13 @@ func TestEntryOperations(t *testing.T) {
 	secret := SecretData{Password: "password123"}
 	dummyKey := []byte("dummy")
 
-	// Test Create
-	if err := Create(svc, user, secret, dummyKey, mockEncrypt); err != nil {
+	// Test Create (namespace empty = global)
+	if err := Create("", svc, user, secret, dummyKey, mockEncrypt); err != nil {
 		t.Fatalf("Create failed: %v", err)
 	}
 
 	// Test Find
-	entry, err := Find(svc, user)
+	entry, err := Find("", svc, user)
 	if err != nil {
 		t.Fatalf("Find failed: %v", err)
 	}
@@ -109,3 +109,38 @@ func TestEntryOperations(t *testing.T) {
 		t.Errorf("Delete should hard-delete the row, but %d row(s) remain in the table", count)
 	}
 }
+
+func TestNamespaceUniqueness(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	noop := func(data, _ []byte) ([]byte, error) { return data, nil }
+	secret := SecretData{Password: "x"}
+
+	// Same (service, username) in two different namespaces must coexist.
+	if err := Create("proj-a", "postgres", "app", secret, []byte("k"), noop); err != nil {
+		t.Fatalf("Create in proj-a failed: %v", err)
+	}
+	if err := Create("proj-b", "postgres", "app", secret, []byte("k"), noop); err != nil {
+		t.Fatalf("Create in proj-b should succeed across namespaces: %v", err)
+	}
+
+	// Same (namespace, service, username) must collide.
+	if err := Create("proj-a", "postgres", "app", secret, []byte("k"), noop); err == nil {
+		t.Error("Create with duplicate (namespace, service, username) should fail")
+	}
+
+	// Find scoped by namespace returns the right row.
+	a, err := Find("proj-a", "postgres", "app")
+	if err != nil {
+		t.Fatalf("Find in proj-a failed: %v", err)
+	}
+	b, err := Find("proj-b", "postgres", "app")
+	if err != nil {
+		t.Fatalf("Find in proj-b failed: %v", err)
+	}
+	if a.ID == b.ID {
+		t.Errorf("Find returned the same row across namespaces: %d", a.ID)
+	}
+}
+
