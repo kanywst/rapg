@@ -169,12 +169,22 @@ func GetEntry(entry storage.PasswordEntry) (*storage.SecretData, error) {
 // GetEnvVars retrieves the env-tagged secrets that should be injected into
 // a child process for the given project context.
 //
-//   - project == nil   → only entries with an empty Namespace ('global').
-//   - project != nil   → only entries whose Namespace matches project.Namespace,
-//     filtered further by project.Allows(EnvKey).
+//   - project == nil                      → only entries with an empty
+//     Namespace ('global').
+//   - project != nil, !InheritGlobal      → only entries whose Namespace
+//     matches project.Namespace.
+//   - project != nil, InheritGlobal=true  → global entries first, then
+//     namespace-matched entries (which override globals on env-key
+//     collision so the more-specific project value wins).
 //
-// This deliberately scopes secrets: an entry tagged for project A must never
-// leak into a run that has no project config or has project B's config.
+// In all project-context cases, project.Allows(EnvKey) further filters by
+// the optional whitelist.
+//
+// This deliberately scopes secrets: by default an entry tagged for project
+// A must never leak into a run that has no project config or has project
+// B's config. Opt into global inheritance via 'inherit_global = true' in
+// .rapg.toml when shared utility credentials (GITHUB_TOKEN etc.) are
+// genuinely cross-cutting.
 func GetEnvVars(project *config.Project) (map[string]string, error) {
 	if SessionKey == nil {
 		return nil, errors.New("vault locked")
@@ -186,26 +196,36 @@ func GetEnvVars(project *config.Project) (map[string]string, error) {
 	}
 
 	envVars := make(map[string]string)
-	for _, entry := range entries {
-		if project == nil {
-			if entry.Namespace != "" {
-				continue
-			}
-		} else {
-			if entry.Namespace != project.Namespace {
-				continue
-			}
-		}
 
-		secret, err := GetEntry(entry)
-		if err != nil || secret.EnvKey == "" {
-			continue
+	// collect decrypts entries matching `match` and writes them into envVars,
+	// applying the project keys whitelist when one is active.
+	collect := func(match func(storage.PasswordEntry) bool) {
+		for _, entry := range entries {
+			if !match(entry) {
+				continue
+			}
+			secret, err := GetEntry(entry)
+			if err != nil || secret.EnvKey == "" {
+				continue
+			}
+			if project != nil && !project.Allows(secret.EnvKey) {
+				continue
+			}
+			envVars[secret.EnvKey] = secret.Password
 		}
-		if project != nil && !project.Allows(secret.EnvKey) {
-			continue
-		}
-		envVars[secret.EnvKey] = secret.Password
 	}
+
+	if project == nil {
+		collect(func(e storage.PasswordEntry) bool { return e.Namespace == "" })
+		return envVars, nil
+	}
+
+	// Two-pass when inheriting: globals first, then namespace overrides.
+	// Single-pass otherwise.
+	if project.InheritGlobal {
+		collect(func(e storage.PasswordEntry) bool { return e.Namespace == "" })
+	}
+	collect(func(e storage.PasswordEntry) bool { return e.Namespace == project.Namespace })
 	return envVars, nil
 }
 
