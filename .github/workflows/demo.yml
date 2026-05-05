@@ -38,19 +38,24 @@ jobs:
         with:
           go-version: '1.25'
 
-      - name: Install sqlite headers
-        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+      - name: Install sqlite + vhs runtime deps
+        # vhs needs ttyd + ffmpeg. ubuntu-latest ships modern enough versions
+        # in apt; we install them explicitly rather than relying on
+        # vhs-action's internal installer (which has been flaky for ffmpeg).
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsqlite3-dev ffmpeg ttyd
+
+      - name: Install vhs
+        run: go install github.com/charmbracelet/vhs@latest
 
       - name: Build rapg
         # Build the whole package, not just main.go — cmd/rapg now spans
         # multiple files (main.go, hooks.go, ...).
         run: go build -o rapg ./cmd/rapg
 
-      - name: Validate tape
-        uses: charmbracelet/vhs-action@v2
-        with:
-          path: 'demo.tape'
-          install-fonts: true
+      - name: Render demo
+        run: vhs demo.tape
 
       - name: Upload demo as artifact (PR only)
         if: github.event_name == 'pull_request'
