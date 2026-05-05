@@ -1,7 +1,6 @@
 package core
 
 import (
-	"os"
 	"testing"
 
 	"github.com/kanywst/rapg/internal/crypto"
@@ -9,9 +8,9 @@ import (
 )
 
 func setupCoreTest(t *testing.T) func() {
+	t.Helper()
 	tmpDir := t.TempDir()
-	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tmpDir)
+	t.Setenv("HOME", tmpDir)
 
 	if err := storage.InitDB(); err != nil {
 		t.Fatalf("InitDB failed: %v", err)
@@ -24,10 +23,16 @@ func setupCoreTest(t *testing.T) func() {
 	}
 
 	return func() {
-		os.Setenv("HOME", originalHome)
 		if SessionKey != nil {
 			SessionKey.Destroy()
 			SessionKey = nil
+		}
+		// Release the sqlite file handle before t.TempDir cleanup runs.
+		if storage.DB != nil {
+			if sqlDB, err := storage.DB.DB(); err == nil {
+				_ = sqlDB.Close()
+			}
+			storage.DB = nil
 		}
 	}
 }
