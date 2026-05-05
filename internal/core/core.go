@@ -169,9 +169,9 @@ func GetEntry(entry storage.PasswordEntry) (*storage.SecretData, error) {
 // GetEnvVars retrieves the env-tagged secrets that should be injected into
 // a child process for the given project context.
 //
-// - project == nil   → only entries with an empty Namespace ('global').
-// - project != nil   → only entries whose Namespace matches project.Namespace,
-//                      filtered further by project.Allows(EnvKey).
+//   - project == nil   → only entries with an empty Namespace ('global').
+//   - project != nil   → only entries whose Namespace matches project.Namespace,
+//     filtered further by project.Allows(EnvKey).
 //
 // This deliberately scopes secrets: an entry tagged for project A must never
 // leak into a run that has no project config or has project B's config.
