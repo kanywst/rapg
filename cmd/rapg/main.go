@@ -183,7 +183,57 @@ Note: Secrets configured in Rapg will override any existing environment variable
 		},
 	}
 
-	rootCmd.AddCommand(genCmd, nukeCmd, exportCmd, runCmd)
+	projectCmd := &cobra.Command{
+		Use:   "project",
+		Short: "Print the current project's namespace (exit 1 if not in a project)",
+		Long: `Walk up from the current directory looking for .rapg.toml. If found,
+print the namespace to stdout and exit 0. Otherwise, print nothing and exit 1.
+
+Designed for shell hooks — use 'rapg hook <shell>' to install one.`,
+		Run: func(cmd *cobra.Command, args []string) {
+			cwd, err := os.Getwd()
+			if err != nil {
+				os.Exit(1)
+			}
+			p, _, err := config.Find(cwd)
+			if err != nil {
+				os.Exit(1)
+			}
+			fmt.Println(p.Namespace)
+		},
+	}
+
+	hookCmd := &cobra.Command{
+		Use:       "hook <shell>",
+		Short:     "Print a shell hook that announces .rapg.toml projects on cd",
+		Long: `Print a shell snippet that, when sourced, prints '[rapg] entered project: X'
+when you 'cd' into a directory whose .rapg.toml declares a namespace, and
+'[rapg] left project: X' when you leave it. Purely informational — does
+not auto-inject secrets. Run 'rapg run -- <cmd>' to actually inject.
+
+Install with:
+
+  # zsh (~/.zshrc)
+  eval "$(rapg hook zsh)"
+
+  # bash (~/.bashrc)
+  eval "$(rapg hook bash)"
+
+  # fish (~/.config/fish/config.fish)
+  rapg hook fish | source`,
+		ValidArgs: []string{"zsh", "bash", "fish"},
+		Args:      cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
+		Run: func(cmd *cobra.Command, args []string) {
+			snippet, ok := hookSnippets[args[0]]
+			if !ok {
+				fmt.Fprintf(os.Stderr, "Unsupported shell: %s (zsh|bash|fish)\n", args[0])
+				os.Exit(1)
+			}
+			fmt.Print(snippet)
+		},
+	}
+
+	rootCmd.AddCommand(genCmd, nukeCmd, exportCmd, runCmd, projectCmd, hookCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
