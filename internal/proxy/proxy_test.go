@@ -75,6 +75,33 @@ func TestGatewaySwapsTokenForRealKey(t *testing.T) {
 	}
 }
 
+func TestGatewayPreservesEscapedPath(t *testing.T) {
+	const token = "tok"
+	var sawRequestURI string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sawRequestURI = r.RequestURI
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	g := newTestGateway(t, anthropic{}, "real", token, upstream.URL)
+	front := httptest.NewServer(g)
+	defer front.Close()
+
+	// %2F must reach the upstream still escaped, not decoded to a slash.
+	req, _ := http.NewRequest(http.MethodGet, front.URL+"/v1/models/a%2Fb", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if !strings.Contains(sawRequestURI, "%2F") {
+		t.Errorf("upstream RequestURI = %q, want it to keep the escaped %%2F", sawRequestURI)
+	}
+}
+
 func TestGatewayRejectsBadToken(t *testing.T) {
 	upstreamHit := false
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
