@@ -4,7 +4,7 @@ Single-binary, local-first secret manager built for the AI-agent era.
 
 [![Go Version](https://img.shields.io/github/go-mod/go-version/kanywst/rapg?style=flat-square)](https://go.dev/) [![Build Status](https://img.shields.io/github/actions/workflow/status/kanywst/rapg/test.yml?branch=master&style=flat-square)](https://github.com/kanywst/rapg/actions) [![License](https://img.shields.io/github/license/kanywst/rapg?style=flat-square)](LICENSE)
 
-![Demo](demo.gif)
+![Demo](demo-v2.gif)
 
 ## The problem in 2026
 

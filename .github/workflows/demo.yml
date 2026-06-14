@@ -1,8 +1,8 @@
 name: Demo
 
-# Regenerate demo.gif via charmbracelet/vhs.
+# Regenerate demo-v2.gif via charmbracelet/vhs.
 # - On PR: render and upload as artifact (reviewers can verify, no commit on the branch).
-# - On push to master: render and bot-commit demo.gif if it changed.
+# - On push to master: render and bot-commit demo-v2.gif if it changed.
 #
 # Triggered only when the tape, the CLI/UI, or this workflow itself changes.
 
@@ -62,23 +62,23 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: demo-gif
-          path: demo.gif
+          path: demo-v2.gif
           retention-days: 14
 
-      - name: Commit regenerated demo.gif (master only)
+      - name: Commit regenerated demo-v2.gif (master only)
         if: github.event_name == 'push'
         env:
           BOT_NAME: github-actions[bot]
           BOT_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
         run: |
-          if [[ -z "$(git status --porcelain demo.gif)" ]]; then
-            echo "demo.gif unchanged — nothing to commit"
+          if [[ -z "$(git status --porcelain demo-v2.gif)" ]]; then
+            echo "demo-v2.gif unchanged — nothing to commit"
             exit 0
           fi
           git config user.name "$BOT_NAME"
           git config user.email "$BOT_EMAIL"
-          git add demo.gif
+          git add demo-v2.gif
           # [skip ci] avoids a potential loop if a PAT is ever swapped in;
           # the default GITHUB_TOKEN does not retrigger workflows on push.
-          git commit -m "chore(demo): auto-regenerate demo.gif [skip ci]"
+          git commit -m "chore(demo): auto-regenerate demo-v2.gif [skip ci]"
           git push
