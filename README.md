@@ -165,7 +165,7 @@ The real key is an ordinary vault entry, found by its `Env Key` (default `ANTHRO
 | Provider | Upstream | Child env injected |
 | --- | --- | --- |
 | `anthropic` | `https://api.anthropic.com` | `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN` |
-| `openai` | `https://api.openai.com` | `OPENAI_BASE_URL`, `OPENAI_API_KEY` |
+| `openai` | `https://api.openai.com` | `OPENAI_BASE_URL` (+ legacy `OPENAI_API_BASE`), `OPENAI_API_KEY` |
 
 Any agent that honors a custom base URL (Claude Code, the OpenAI Agents SDK, most tools) works unchanged.
 
