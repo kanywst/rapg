@@ -608,16 +608,11 @@ func runProxy(providerName, envKeyOverride string, port int, args []string) {
 	}
 	maps.Copy(injected, childEnv)
 
-	runCmd.Env = make([]string, 0, len(os.Environ())+len(injected))
-	for _, e := range os.Environ() {
-		key := strings.SplitN(e, "=", 2)[0]
-		if _, override := injected[key]; !override {
-			runCmd.Env = append(runCmd.Env, e)
-		}
-	}
-	for k, v := range injected {
-		runCmd.Env = append(runCmd.Env, fmt.Sprintf("%s=%s", k, v))
-	}
+	// Strip the real provider key if it's already exported in the parent shell
+	// — otherwise it would pass straight through to the child and defeat the
+	// whole point of the proxy. Drop the provider's default key too, in case
+	// --env-key points elsewhere but the standard var is also set.
+	runCmd.Env = childEnviron(os.Environ(), injected, envKey, prov.DefaultEnvKey())
 
 	runErr := runCmd.Run()
 
@@ -634,4 +629,33 @@ func runProxy(providerName, envKeyOverride string, port int, args []string) {
 		fmt.Fprintf(os.Stderr, "Command execution failed: %v\n", runErr)
 		os.Exit(1)
 	}
+}
+
+// childEnviron builds a child process environment from the parent's `environ`
+// (os.Environ() form: "KEY=value"), with `override` entries set last so they
+// win, and any key in `strip` removed entirely. strip is how `rapg proxy`
+// guarantees the real provider key never reaches the child even when the
+// parent shell already exports it.
+func childEnviron(environ []string, override map[string]string, strip ...string) []string {
+	stripped := make(map[string]bool, len(strip))
+	for _, k := range strip {
+		if k != "" {
+			stripped[k] = true
+		}
+	}
+	out := make([]string, 0, len(environ)+len(override))
+	for _, e := range environ {
+		key := strings.SplitN(e, "=", 2)[0]
+		if stripped[key] {
+			continue
+		}
+		if _, overridden := override[key]; overridden {
+			continue
+		}
+		out = append(out, e)
+	}
+	for k, v := range override {
+		out = append(out, fmt.Sprintf("%s=%s", k, v))
+	}
+	return out
 }
