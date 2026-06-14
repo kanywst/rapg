@@ -5,11 +5,18 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
+
+// StaleAfter is how long a secret may go without rotation before rapg
+// surfaces a freshness reminder. Static dev credentials don't auto-rotate
+// (2026 guidance pushes short-lived/rotated creds), so this is a nudge, not
+// enforcement.
+const StaleAfter = 90 * 24 * time.Hour
 
 // SecretData is the structure that gets serialized and encrypted.
 type SecretData struct {
@@ -18,6 +25,28 @@ type SecretData struct {
 	Notes    string `json:"notes,omitempty"`
 	Url      string `json:"url,omitempty"`
 	EnvKey   string `json:"env_key,omitempty"`
+	// RotatedAt is when the password was last set or rotated. Zero for
+	// entries created before rotation tracking existed — callers treat that
+	// as "unknown", not "fresh".
+	RotatedAt time.Time `json:"rotated_at,omitzero"`
+}
+
+// RotationAge reports how long ago the secret was last set/rotated relative
+// to now. ok is false when RotatedAt is zero (legacy entries predating
+// rotation tracking), letting callers distinguish "fresh" from "unknown".
+func (d SecretData) RotationAge(now time.Time) (age time.Duration, ok bool) {
+	if d.RotatedAt.IsZero() {
+		return 0, false
+	}
+	return now.Sub(d.RotatedAt), true
+}
+
+// IsStale reports whether the secret is older than StaleAfter. Entries with
+// an unknown rotation time are never reported stale — we don't nag about
+// data we can't date.
+func (d SecretData) IsStale(now time.Time) bool {
+	age, ok := d.RotationAge(now)
+	return ok && age > StaleAfter
 }
 
 // PasswordEntry is one row in the vault. Namespace scopes the entry to a

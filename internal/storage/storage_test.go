@@ -1,8 +1,70 @@
 package storage
 
 import (
+	"encoding/json"
 	"testing"
+	"time"
 )
+
+func TestRotationAge(t *testing.T) {
+	now := time.Date(2026, 6, 14, 0, 0, 0, 0, time.UTC)
+
+	// Unknown (zero) rotation time: ok=false, never stale.
+	var unknown SecretData
+	if _, ok := unknown.RotationAge(now); ok {
+		t.Error("zero RotatedAt should report ok=false")
+	}
+	if unknown.IsStale(now) {
+		t.Error("untracked entry must never be reported stale")
+	}
+
+	// Fresh: one day old.
+	fresh := SecretData{RotatedAt: now.Add(-24 * time.Hour)}
+	age, ok := fresh.RotationAge(now)
+	if !ok || age != 24*time.Hour {
+		t.Errorf("RotationAge = %v, %v; want 24h, true", age, ok)
+	}
+	if fresh.IsStale(now) {
+		t.Error("1-day-old entry should not be stale")
+	}
+
+	// Stale: older than StaleAfter.
+	old := SecretData{RotatedAt: now.Add(-(StaleAfter + time.Hour))}
+	if !old.IsStale(now) {
+		t.Error("entry older than StaleAfter should be stale")
+	}
+
+	// Boundary: exactly StaleAfter old is not yet stale (strict >).
+	edge := SecretData{RotatedAt: now.Add(-StaleAfter)}
+	if edge.IsStale(now) {
+		t.Error("entry exactly StaleAfter old should not yet be stale")
+	}
+}
+
+func TestSecretDataRotatedAtRoundTrip(t *testing.T) {
+	ts := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	b, err := json.Marshal(SecretData{Password: "p", RotatedAt: ts})
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+	var out SecretData
+	if err := json.Unmarshal(b, &out); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	if !out.RotatedAt.Equal(ts) {
+		t.Errorf("RotatedAt round-trip = %v, want %v", out.RotatedAt, ts)
+	}
+
+	// Legacy payloads without the field must decode to the zero time, which
+	// RotationAge treats as "unknown".
+	var legacy SecretData
+	if err := json.Unmarshal([]byte(`{"password":"p"}`), &legacy); err != nil {
+		t.Fatalf("legacy unmarshal failed: %v", err)
+	}
+	if !legacy.RotatedAt.IsZero() {
+		t.Errorf("missing rotated_at should be zero time, got %v", legacy.RotatedAt)
+	}
+}
 
 // setupTestDB creates a temporary directory, sets HOME to it, and initializes the DB.
 // It returns a cleanup function that should be deferred.
