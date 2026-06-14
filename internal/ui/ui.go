@@ -386,6 +386,10 @@ func (m *Model) updateDetailView() {
 	// the stale verdict stay consistent within this render.
 	now := time.Now()
 	if age, ok := ss.RotationAge(now); ok {
+		if age < 0 {
+			// Clock skew or a future timestamp — don't render "-3d ago".
+			age = 0
+		}
 		days := int(age.Hours()) / 24
 		when := fmt.Sprintf("%dd ago", days)
 		if days == 0 {
