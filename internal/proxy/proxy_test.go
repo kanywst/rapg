@@ -167,6 +167,52 @@ func TestGatewayAcceptsXAPIKeyToken(t *testing.T) {
 	}
 }
 
+func TestOpenAISwapsTokenForRealKey(t *testing.T) {
+	const realKey = "sk-openai-REAL"
+	const token = "openai-proxy-token"
+
+	var sawAuth string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sawAuth = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	g := newTestGateway(t, openai{}, realKey, token, upstream.URL)
+	front := httptest.NewServer(g)
+	defer front.Close()
+
+	// OpenAI SDK convention: token arrives as Authorization: Bearer.
+	req, _ := http.NewRequest(http.MethodPost, front.URL+"/v1/chat/completions", strings.NewReader("{}"))
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	if sawAuth != "Bearer "+realKey {
+		t.Errorf("upstream Authorization = %q, want bearer real key", sawAuth)
+	}
+	if strings.Contains(sawAuth, token) {
+		t.Error("proxy token leaked to upstream")
+	}
+}
+
+func TestOpenAIChildEnv(t *testing.T) {
+	env := openai{}.ChildEnv("http://127.0.0.1:7777", "TOK")
+	// Base URL must carry /v1 — the SDK appends endpoint paths to it.
+	if env["OPENAI_BASE_URL"] != "http://127.0.0.1:7777/v1" {
+		t.Errorf("OPENAI_BASE_URL = %q, want .../v1", env["OPENAI_BASE_URL"])
+	}
+	if env["OPENAI_API_KEY"] != "TOK" {
+		t.Errorf("OPENAI_API_KEY = %q", env["OPENAI_API_KEY"])
+	}
+}
+
 func TestNewToken(t *testing.T) {
 	a, err := NewToken()
 	if err != nil {

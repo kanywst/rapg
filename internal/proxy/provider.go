@@ -44,8 +44,10 @@ func Lookup(name string) (Provider, error) {
 	switch name {
 	case "anthropic":
 		return anthropic{}, nil
+	case "openai":
+		return openai{}, nil
 	default:
-		return nil, fmt.Errorf("unsupported provider %q (supported: anthropic)", name)
+		return nil, fmt.Errorf("unsupported provider %q (supported: anthropic, openai)", name)
 	}
 }
 
@@ -88,5 +90,31 @@ func (anthropic) ChildEnv(listenURL, proxyToken string) map[string]string {
 	return map[string]string{
 		"ANTHROPIC_BASE_URL":   listenURL,
 		"ANTHROPIC_AUTH_TOKEN": proxyToken,
+	}
+}
+
+// openai targets api.openai.com. The OpenAI SDKs send the key as
+// "Authorization: Bearer <key>" and read OPENAI_BASE_URL + OPENAI_API_KEY.
+// OPENAI_BASE_URL must include the /v1 path segment because the SDK appends
+// endpoint paths (e.g. /chat/completions) directly to it.
+type openai struct{}
+
+func (openai) Name() string            { return "openai" }
+func (openai) DefaultEnvKey() string   { return "OPENAI_API_KEY" }
+func (openai) UpstreamBaseURL() string { return "https://api.openai.com" }
+
+func (openai) InboundToken(r *http.Request) string {
+	return bearer(r)
+}
+
+func (openai) SetRealAuth(r *http.Request, realKey string) {
+	r.Header.Del("x-api-key")
+	r.Header.Set("Authorization", "Bearer "+realKey)
+}
+
+func (openai) ChildEnv(listenURL, proxyToken string) map[string]string {
+	return map[string]string{
+		"OPENAI_BASE_URL": listenURL + "/v1",
+		"OPENAI_API_KEY":  proxyToken,
 	}
 }
