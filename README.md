@@ -151,12 +151,31 @@ rapg session log --limit 100
 
 The log is plaintext metadata at mode `0600`. To wipe it, just `rm ~/.rapg/sessions.jsonl` — `rapg run` will recreate it on the next invocation.
 
+## Provider proxy (`rapg proxy`)
+
+`rapg run` injects the real key into the child's environment. `rapg proxy` goes further: it keeps the real key in rapg's own memory and hands the agent a short-lived, loopback-bound token instead. A prompt-injected agent that reads its own environment leaks only that token — valid solely on `127.0.0.1` for the life of this process, and useless once it exits.
+
+```bash
+rapg proxy --provider anthropic -- claude code
+rapg proxy --provider openai -- python agent.py
+```
+
+The real key is an ordinary vault entry, found by its `Env Key` (default `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`, override with `--env-key`), honoring `.rapg.toml` scoping just like `rapg run`. The proxy binds a loopback-only ephemeral port (override with `--port`) and lives exactly as long as the child.
+
+| Provider | Upstream | Child env injected |
+| --- | --- | --- |
+| `anthropic` | `api.anthropic.com` | `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN` |
+| `openai` | `api.openai.com` | `OPENAI_BASE_URL`, `OPENAI_API_KEY` |
+
+Any agent that honors a custom base URL (Claude Code, the OpenAI Agents SDK, most tools) works unchanged.
+
 ## Subcommands
 
 | Command | Purpose |
 | --- | --- |
 | `rapg` | Launch the TUI |
 | `rapg run -- <cmd>` | Inject secrets into a child process (respects `.rapg.toml`, records to session log) |
+| `rapg proxy --provider <p> -- <cmd>` | Run a command behind a localhost gateway that holds the real API key (`anthropic`, `openai`) |
 | `rapg gen [length]` | Generate a cryptographically random password |
 | `rapg export` | Print env-tagged secrets as `KEY=value` lines (respects `.rapg.toml`) |
 | `rapg redact <file\|->` | Mask vault values in a file or stdin; output to stdout |
@@ -169,8 +188,7 @@ The log is plaintext metadata at mode `0600`. To wipe it, just `rm ~/.rapg/sessi
 
 Next on the agent-leakage track:
 
-1. `rapg proxy --provider anthropic|openai` (experimental) — local HTTP proxy that holds the real API key, so agents only ever see a short-lived proxy token.
-2. Direnv-style auto-injection on `cd`, with a TPM / Touch ID / Secure Enclave-backed key cache.
+1. Direnv-style auto-injection on `cd`, with a TPM / Touch ID / Secure Enclave-backed key cache.
 
 ## Security
 
