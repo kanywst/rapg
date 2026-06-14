@@ -61,7 +61,7 @@ An MCP server is just another child process that needs credentials — and 2026 
 rapg run -- npx -y @modelcontextprotocol/server-github
 ```
 
-The server reads its credential (e.g. a GitHub PAT) from the environment you tagged with an `Env Key`; the value never lands in a config file, the shell history, or — if you pair this with `inherit_global = false` — any other project's context.
+The server reads its credential (e.g. a GitHub PAT) from the environment you tagged with an `Env Key`; the value never lands in a config file, the shell history, or — since `inherit_global` defaults to `false` — any other project's context.
 
 ## TUI keys
 
