@@ -382,14 +382,16 @@ func (m *Model) updateDetailView() {
 
 	// Rotation freshness — static dev creds don't auto-rotate, so nudge when
 	// one is older than storage.StaleAfter. Untracked (legacy) entries show
-	// nothing rather than a misleading "fresh".
-	if age, ok := ss.RotationAge(time.Now()); ok {
+	// nothing rather than a misleading "fresh". One time.Now() so the age and
+	// the stale verdict stay consistent within this render.
+	now := time.Now()
+	if age, ok := ss.RotationAge(now); ok {
 		days := int(age.Hours()) / 24
 		when := fmt.Sprintf("%dd ago", days)
 		if days == 0 {
 			when = "today"
 		}
-		if ss.IsStale(time.Now()) {
+		if ss.IsStale(now) {
 			b.WriteString(labelStyle.Render("Rotated:  ") + errorStyle.Render(when+"  ⚠ consider rotating") + "\n")
 		} else {
 			b.WriteString(labelStyle.Render("Rotated:  ") + valueStyle.Render(when) + "\n")
@@ -441,7 +443,7 @@ func (m *Model) submitAdd() tea.Cmd {
 		TOTP:      totpSecret,
 		EnvKey:    envKey,
 		Notes:     notes,
-		RotatedAt: time.Now(),
+		RotatedAt: time.Now().UTC(),
 	}
 
 	if err := core.AddEntry(namespace, service, username, data); err != nil {
