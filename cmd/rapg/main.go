@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"os"
@@ -595,23 +596,34 @@ func runProxy(providerName, envKeyOverride string, port int, args []string) {
 	runCmd.Stdout = os.Stdout
 	runCmd.Stderr = os.Stderr
 
-	// Inherit the parent environment, but override the provider's base-URL and
-	// token vars so the child's SDK points at the gateway.
-	runCmd.Env = make([]string, 0, len(os.Environ())+len(childEnv))
+	// Inject the same scoped secrets 'rapg run' would, EXCEPT the real
+	// provider key — the agent reaches that only through the proxy token. Then
+	// layer the provider's base-URL/token env on top so the SDK points at the
+	// gateway.
+	injected := make(map[string]string, len(envVars)+len(childEnv))
+	for k, v := range envVars {
+		if k != envKey {
+			injected[k] = v
+		}
+	}
+	maps.Copy(injected, childEnv)
+
+	runCmd.Env = make([]string, 0, len(os.Environ())+len(injected))
 	for _, e := range os.Environ() {
 		key := strings.SplitN(e, "=", 2)[0]
-		if _, override := childEnv[key]; !override {
+		if _, override := injected[key]; !override {
 			runCmd.Env = append(runCmd.Env, e)
 		}
 	}
-	for k, v := range childEnv {
+	for k, v := range injected {
 		runCmd.Env = append(runCmd.Env, fmt.Sprintf("%s=%s", k, v))
 	}
 
 	runErr := runCmd.Run()
 
-	// Record the session: which env key backed the proxy (NOT its value).
-	recordSession(project, command, cmdArgs, map[string]string{envKey: ""}, runCmd)
+	// Record the session: every scoped secret key in play (NOT their values),
+	// matching 'rapg run'. envKey is the proxied provider key.
+	recordSession(project, command, cmdArgs, envVars, runCmd)
 
 	if runErr != nil {
 		if runCmd.ProcessState != nil {
