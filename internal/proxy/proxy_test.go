@@ -208,6 +208,10 @@ func TestOpenAIChildEnv(t *testing.T) {
 	if env["OPENAI_BASE_URL"] != "http://127.0.0.1:7777/v1" {
 		t.Errorf("OPENAI_BASE_URL = %q, want .../v1", env["OPENAI_BASE_URL"])
 	}
+	// Legacy var must be set too for older SDKs.
+	if env["OPENAI_API_BASE"] != "http://127.0.0.1:7777/v1" {
+		t.Errorf("OPENAI_API_BASE = %q, want .../v1", env["OPENAI_API_BASE"])
+	}
 	if env["OPENAI_API_KEY"] != "TOK" {
 		t.Errorf("OPENAI_API_KEY = %q", env["OPENAI_API_KEY"])
 	}
