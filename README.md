@@ -164,8 +164,8 @@ The real key is an ordinary vault entry, found by its `Env Key` (default `ANTHRO
 
 | Provider | Upstream | Child env injected |
 | --- | --- | --- |
-| `anthropic` | `api.anthropic.com` | `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN` |
-| `openai` | `api.openai.com` | `OPENAI_BASE_URL`, `OPENAI_API_KEY` |
+| `anthropic` | `https://api.anthropic.com` | `ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN` |
+| `openai` | `https://api.openai.com` | `OPENAI_BASE_URL`, `OPENAI_API_KEY` |
 
 Any agent that honors a custom base URL (Claude Code, the OpenAI Agents SDK, most tools) works unchanged.
 
@@ -175,7 +175,7 @@ Any agent that honors a custom base URL (Claude Code, the OpenAI Agents SDK, mos
 | --- | --- |
 | `rapg` | Launch the TUI |
 | `rapg run -- <cmd>` | Inject secrets into a child process (respects `.rapg.toml`, records to session log) |
-| `rapg proxy --provider <p> -- <cmd>` | Run a command behind a localhost gateway that holds the real API key (`anthropic`, `openai`) |
+| `rapg proxy --provider <provider> -- <cmd>` | Run a command behind a localhost gateway that holds the real API key (`anthropic`, `openai`) |
 | `rapg gen [length]` | Generate a cryptographically random password |
 | `rapg export` | Print env-tagged secrets as `KEY=value` lines (respects `.rapg.toml`) |
 | `rapg redact <file\|->` | Mask vault values in a file or stdin; output to stdout |
