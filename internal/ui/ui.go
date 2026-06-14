@@ -380,6 +380,22 @@ func (m *Model) updateDetailView() {
 		b.WriteString(labelStyle.Render("Env Key:  ") + valueStyle.Render(ss.EnvKey) + "\n")
 	}
 
+	// Rotation freshness — static dev creds don't auto-rotate, so nudge when
+	// one is older than storage.StaleAfter. Untracked (legacy) entries show
+	// nothing rather than a misleading "fresh".
+	if age, ok := ss.RotationAge(time.Now()); ok {
+		days := int(age.Hours()) / 24
+		when := fmt.Sprintf("%dd ago", days)
+		if days == 0 {
+			when = "today"
+		}
+		if ss.IsStale(time.Now()) {
+			b.WriteString(labelStyle.Render("Rotated:  ") + errorStyle.Render(when+"  ⚠ consider rotating") + "\n")
+		} else {
+			b.WriteString(labelStyle.Render("Rotated:  ") + valueStyle.Render(when) + "\n")
+		}
+	}
+
 	// TOTP
 	if ss.TOTP != "" {
 		code, err := totp.GenerateCode(ss.TOTP, time.Now())
@@ -421,10 +437,11 @@ func (m *Model) submitAdd() tea.Cmd {
 	}
 
 	data := storage.SecretData{
-		Password: pass,
-		TOTP:     totpSecret,
-		EnvKey:   envKey,
-		Notes:    notes,
+		Password:  pass,
+		TOTP:      totpSecret,
+		EnvKey:    envKey,
+		Notes:     notes,
+		RotatedAt: time.Now(),
 	}
 
 	if err := core.AddEntry(namespace, service, username, data); err != nil {
