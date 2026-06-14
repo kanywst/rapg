@@ -327,7 +327,7 @@ Example:
 			runProxy(proxyProvider, proxyEnvKey, proxyPort, args)
 		},
 	}
-	proxyCmd.Flags().StringVar(&proxyProvider, "provider", "", "API provider to proxy (anthropic)")
+	proxyCmd.Flags().StringVar(&proxyProvider, "provider", "", "API provider to proxy (anthropic, openai)")
 	proxyCmd.Flags().StringVar(&proxyEnvKey, "env-key", "", "vault Env Key holding the real API key (default: the provider's standard key)")
 	proxyCmd.Flags().IntVar(&proxyPort, "port", 0, "localhost port to listen on (0 = ephemeral)")
 	_ = proxyCmd.MarkFlagRequired("provider")
