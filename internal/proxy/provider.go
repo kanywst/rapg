@@ -113,8 +113,12 @@ func (openai) SetRealAuth(r *http.Request, realKey string) {
 }
 
 func (openai) ChildEnv(listenURL, proxyToken string) map[string]string {
+	base := listenURL + "/v1"
 	return map[string]string{
-		"OPENAI_BASE_URL": listenURL + "/v1",
+		"OPENAI_BASE_URL": base,
+		// OPENAI_API_BASE is the legacy variable older SDKs (pre-v1 Python) and
+		// some third-party tools still read. Set both for broad compatibility.
+		"OPENAI_API_BASE": base,
 		"OPENAI_API_KEY":  proxyToken,
 	}
 }
