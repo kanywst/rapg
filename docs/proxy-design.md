@@ -1,4 +1,4 @@
-# Design: `rapg proxy` — a local short-lived-token gateway for AI agents
+# Design: `rapg proxy`, a local short-lived-token gateway for AI agents
 
 Status: **proposed** (design only; no implementation in this PR).
 
@@ -25,7 +25,7 @@ rapg proxy --provider anthropic -- claude code
 1. Unlock the vault and load the real provider key into protected memory.
 2. Start a localhost-only HTTP listener.
 3. Mint a random, per-invocation proxy token held only in memory.
-4. Launch the child with the proxy's address + the proxy token injected as
+4. Launch the child with the proxy's address plus the proxy token injected as
    env (`ANTHROPIC_BASE_URL`, `ANTHROPIC_AUTH_TOKEN`).
 5. For each inbound request bearing the proxy token, swap in the real key and
    forward to the upstream provider; stream the response back unchanged.
@@ -40,6 +40,7 @@ process does, and (c) is useless to anyone who exfiltrates it off the machine.
 | Threat | Mitigation |
 | --- | --- |
 | Prompt injection runs `env` / reads environ | Child env holds only the proxy token, not the real key |
+| Real key already exported in the parent shell | The provider's env key is stripped from the child env before launch, so inheritance can't leak it |
 | Exfiltrated proxy token reused elsewhere | Token is bound to `127.0.0.1` and to this process lifetime |
 | Other local user/process hits the listener | Constant-time token check; bind to loopback only, never `0.0.0.0` |
 | Key on disk | Real key stays in the vault (encrypted) and in a `memguard` buffer at runtime |
@@ -47,9 +48,9 @@ process does, and (c) is useless to anyone who exfiltrates it off the machine.
 
 Out of scope (a localhost dev proxy is not a security boundary against a
 fully compromised host): an attacker with code execution as the same user can
-already drive the live proxy to make calls. The win is narrower and real —
-**the durable secret (the provider key) is never exposed to the agent**, so a
-leaked transcript/context/env never contains a reusable credential.
+already drive the live proxy to make calls. The win is narrower and real. The
+durable secret (the provider key) is never exposed to the agent, so a leaked
+transcript, context, or env never contains a reusable credential.
 
 ## Architecture
 
@@ -90,7 +91,7 @@ type Provider interface {
 
 ### Which vault entry supplies the key
 
-The provider key is an ordinary vault entry, selected by its `Env Key`:
+The provider key is an ordinary vault entry, selected by its `Env Key`.
 `--provider anthropic` looks for the entry tagged `ANTHROPIC_API_KEY`,
 honoring the same `.rapg.toml` namespace scoping as `rapg run`. A
 `--env-key` flag overrides the default mapping when the tag differs.
@@ -98,47 +99,49 @@ honoring the same `.rapg.toml` namespace scoping as `rapg run`. A
 ### Token
 
 - 32 bytes from `crypto/rand`, hex-encoded, minted per invocation.
-- Compared with `subtle.ConstantTimeCompare` on every request.
+- Length-checked before the `subtle.ConstantTimeCompare` on every request. The
+  token length is public, so rejecting a wrong-length input early leaks
+  nothing and avoids allocating a slice for an arbitrarily large header.
 - Held in memory only (alongside the real key in a `memguard` buffer); never
   written to disk or the session log. The audit log records that a proxy ran
-  and for which provider/env-key — never the token or key.
+  and for which provider and env-key, never the token or key.
 
 ### CLI shape
 
-Primary form mirrors `rapg run` (scoped to a child's lifetime — rapg's core
-idiom: inject for one process, tear down on exit):
+The primary form mirrors `rapg run`, scoped to a child's lifetime. That is
+rapg's core idiom: inject for one process, tear down on exit.
 
 ```text
 rapg proxy --provider anthropic [--env-key NAME] [--port 0] -- <cmd> [args...]
 ```
 
-`--port 0` (default) picks a free ephemeral port. A secondary
-standalone form (`rapg proxy --provider anthropic` with no `--`, prints the
-export lines and stays in the foreground) can come later if there's demand;
-the wrapping form is the safe default because the proxy can't outlive the
-agent.
+`--port 0` (default) picks a free ephemeral port. A secondary standalone form
+(`rapg proxy --provider anthropic` with no `--`, prints the export lines and
+stays in the foreground) can come later if there's demand. The wrapping form
+is the safe default because the proxy can't outlive the agent.
 
 ## Implementation plan (one PR each)
 
-1. **This PR** — design doc.
-2. `internal/proxy`: `Provider` interface + `anthropic` provider + the core
-   forwarder (listener, token verification, auth swap, streaming passthrough).
-   Tested with `httptest` against a fake upstream; no network, no vault.
+1. **This PR.** Design doc.
+2. `internal/proxy`: `Provider` interface plus `anthropic` provider plus the
+   core forwarder (listener, token verification, auth swap, streaming
+   passthrough). Tested with `httptest` against a fake upstream; no network,
+   no vault.
 3. `cmd/rapg`: wire `rapg proxy --provider anthropic -- <cmd>`, vault unlock,
    key lookup by env-key, child launch with injected env, lifecycle teardown.
    Record the run in the existing session log.
-4. `openai` provider + `--env-key` override.
+4. `openai` provider plus `--env-key` override.
 5. Docs: promote from Roadmap to a real README section; update the Security
    table; refresh `demo.tape` if it shows the flow.
 
 ## Open questions
 
-- **Streaming:** Anthropic/OpenAI use SSE. Passthrough is a plain `io.Copy`
-  with response buffering disabled — verify no proxy-side buffering breaks
-  token-by-token streaming.
+- **Streaming:** Anthropic and OpenAI use SSE. Passthrough is a plain
+  `io.Copy` with response buffering disabled. Verify that no proxy-side
+  buffering breaks token-by-token streaming.
 - **Retries/timeouts:** v1 forwards 1:1 with a generous timeout and no retry
   logic. Cost tracking, rate limiting, and routing are explicitly LiteLLM's
   job, not rapg's.
 - **Non-HTTP agents:** only agents that honor a custom base URL can use this.
-  That covers Claude Code, OpenAI Agents SDK, and most tools — documented as
-  a requirement, not solved in the proxy.
+  That covers Claude Code, OpenAI Agents SDK, and most tools; it is documented
+  as a requirement, not solved in the proxy.
