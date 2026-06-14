@@ -67,14 +67,23 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// 1. Verify the proxy token in constant time. A mismatch (or an absent
 	//    token) is rejected before we touch the real key or the upstream.
 	got := g.provider.InboundToken(r)
-	if subtle.ConstantTimeCompare([]byte(got), []byte(g.token)) != 1 {
+	// Length check first: the token is a fixed, public-length string, so
+	// rejecting a wrong length leaks nothing and avoids allocating a byte
+	// slice for an arbitrarily large header. The compare stays constant-time
+	// for equal lengths.
+	if len(got) != len(g.token) || subtle.ConstantTimeCompare([]byte(got), []byte(g.token)) != 1 {
 		http.Error(w, "invalid or missing proxy token", http.StatusUnauthorized)
 		return
 	}
 
-	// 2. Build the outbound request against the upstream base.
+	// 2. Build the outbound request against the upstream base. Preserve
+	//    RawPath so escaped path segments (e.g. %2F) survive — r.URL.Path is
+	//    unescaped, only RawPath carries the original encoding.
 	out := *g.upstream
 	out.Path = singleJoiningSlash(g.upstream.Path, r.URL.Path)
+	if r.URL.RawPath != "" {
+		out.RawPath = singleJoiningSlash(g.upstream.RawPath, r.URL.RawPath)
+	}
 	out.RawQuery = r.URL.RawQuery
 
 	req, err := http.NewRequestWithContext(r.Context(), r.Method, out.String(), r.Body)
