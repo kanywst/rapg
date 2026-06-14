@@ -192,8 +192,12 @@ func TestAnthropicChildEnv(t *testing.T) {
 }
 
 func TestLookup(t *testing.T) {
-	if _, err := Lookup("anthropic"); err != nil {
+	p, err := Lookup("anthropic")
+	if err != nil {
 		t.Errorf("Lookup(anthropic) error: %v", err)
+	}
+	if got := p.DefaultEnvKey(); got != "ANTHROPIC_API_KEY" {
+		t.Errorf("anthropic DefaultEnvKey = %q, want ANTHROPIC_API_KEY", got)
 	}
 	if _, err := Lookup("nope"); err == nil {
 		t.Error("Lookup(nope) should return an error")

@@ -21,6 +21,10 @@ import (
 type Provider interface {
 	// Name is the --provider value, e.g. "anthropic".
 	Name() string
+	// DefaultEnvKey is the vault Env Key that holds this provider's real API
+	// key by convention (e.g. "ANTHROPIC_API_KEY"). The CLI uses it to locate
+	// the key unless --env-key overrides it.
+	DefaultEnvKey() string
 	// UpstreamBaseURL is where verified requests are forwarded.
 	UpstreamBaseURL() string
 	// InboundToken extracts the proxy token the agent sent on the request,
@@ -63,6 +67,7 @@ func bearer(r *http.Request) string {
 type anthropic struct{}
 
 func (anthropic) Name() string            { return "anthropic" }
+func (anthropic) DefaultEnvKey() string   { return "ANTHROPIC_API_KEY" }
 func (anthropic) UpstreamBaseURL() string { return "https://api.anthropic.com" }
 
 func (anthropic) InboundToken(r *http.Request) string {
