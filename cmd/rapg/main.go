@@ -521,7 +521,7 @@ func loadProject() *config.Project {
 
 // runProxy starts a localhost gateway holding the provider's real API key and
 // runs args[0] with a short-lived proxy token injected via the provider's
-// child env. The real key never enters the child's environment — that is the
+// child env. The real key never enters the child's environment, which is the
 // whole point versus 'rapg run'. The proxy is bound to the child's lifetime:
 // when the child exits, the listener goes down with the process.
 func runProxy(providerName, envKeyOverride string, port int, args []string) {
@@ -560,7 +560,7 @@ func runProxy(providerName, envKeyOverride string, port int, args []string) {
 		os.Exit(1)
 	}
 
-	// Loopback only — never 0.0.0.0. The proxy token is the only thing
+	// Loopback only, never 0.0.0.0. The proxy token is the only thing
 	// guarding the listener, and it is valid solely on this host for this
 	// process.
 	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
@@ -597,7 +597,7 @@ func runProxy(providerName, envKeyOverride string, port int, args []string) {
 	runCmd.Stderr = os.Stderr
 
 	// Inject the same scoped secrets 'rapg run' would, EXCEPT the real
-	// provider key — the agent reaches that only through the proxy token. Then
+	// provider key, which the agent reaches only through the proxy token. Then
 	// layer the provider's base-URL/token env on top so the SDK points at the
 	// gateway.
 	injected := make(map[string]string, len(envVars)+len(childEnv))
@@ -608,8 +608,8 @@ func runProxy(providerName, envKeyOverride string, port int, args []string) {
 	}
 	maps.Copy(injected, childEnv)
 
-	// Strip the real provider key if it's already exported in the parent shell
-	// — otherwise it would pass straight through to the child and defeat the
+	// Strip the real provider key if it's already exported in the parent shell;
+	// otherwise it would pass straight through to the child and defeat the
 	// whole point of the proxy. Drop the provider's default key too, in case
 	// --env-key points elsewhere but the standard var is also set.
 	runCmd.Env = childEnviron(os.Environ(), injected, envKey, prov.DefaultEnvKey())

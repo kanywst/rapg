@@ -17,7 +17,7 @@ func envValue(environ []string, key string) (string, bool) {
 }
 
 func TestChildEnvironStripsRealKey(t *testing.T) {
-	// The parent shell already exports the real provider key — the exact
+	// The parent shell already exports the real provider key, the exact
 	// leak the proxy must prevent.
 	parent := []string{
 		"PATH=/usr/bin",
