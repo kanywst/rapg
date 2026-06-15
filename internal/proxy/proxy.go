@@ -24,7 +24,7 @@ func NewToken() (string, error) {
 // Gateway is the localhost forwarder. It verifies the agent's proxy token,
 // swaps in the real provider key, and streams the upstream response back.
 //
-// realKey lives here in memory for the gateway's lifetime — the proxy must
+// realKey lives here in memory for the gateway's lifetime; the proxy must
 // hold the key to use it. The win over `rapg run` is that the key is in THIS
 // process, not the agent's, so the agent never sees a reusable credential.
 type Gateway struct {
@@ -77,7 +77,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. Build the outbound request against the upstream base. Preserve
-	//    RawPath so escaped path segments (e.g. %2F) survive — r.URL.Path is
+	//    RawPath so escaped path segments (e.g. %2F) survive: r.URL.Path is
 	//    unescaped, only RawPath carries the original encoding.
 	out := *g.upstream
 	out.Path = singleJoiningSlash(g.upstream.Path, r.URL.Path)
