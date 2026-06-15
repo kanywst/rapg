@@ -153,7 +153,7 @@ The log is plaintext metadata at mode `0600`. To wipe it, just `rm ~/.rapg/sessi
 
 ## Provider proxy (`rapg proxy`)
 
-`rapg run` injects the real key into the child's environment. `rapg proxy` goes further: it keeps the real key in rapg's own memory and hands the agent a short-lived, loopback-bound token instead. A prompt-injected agent that reads its own environment leaks only that token — valid solely on `127.0.0.1` for the life of this process, and useless once it exits.
+`rapg run` injects the real key into the child's environment. `rapg proxy` goes further: it keeps the real key in rapg's own memory and hands the agent a short-lived, loopback-bound token instead. A prompt-injected agent that reads its own environment leaks only that token, which is valid solely on `127.0.0.1` for the life of this process and useless once it exits.
 
 ```bash
 rapg proxy --provider anthropic -- claude code
