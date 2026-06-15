@@ -390,7 +390,7 @@ func (m *Model) updateDetailView() {
 			// Clock skew or a future timestamp; don't render "-3d ago".
 			age = 0
 		}
-		days := int(age.Hours()) / 24
+		days := int(age / (24 * time.Hour))
 		when := fmt.Sprintf("%dd ago", days)
 		if days == 0 {
 			when = "today"
