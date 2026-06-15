@@ -83,5 +83,10 @@ func (anthropic) ChildEnv(listenURL, proxyToken string) map[string]string {
 	return map[string]string{
 		"ANTHROPIC_BASE_URL":   listenURL,
 		"ANTHROPIC_AUTH_TOKEN": proxyToken,
+		// Also set ANTHROPIC_API_KEY so the official SDKs (Python, TS, Go),
+		// which ignore ANTHROPIC_AUTH_TOKEN, still authenticate. They send it
+		// as x-api-key, which InboundToken accepts. Since the proxy strips the
+		// real key from the child env, this is the token, not the real key.
+		"ANTHROPIC_API_KEY": proxyToken,
 	}
 }
