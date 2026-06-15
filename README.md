@@ -61,7 +61,7 @@ An MCP server is just another child process that needs credentials, and 2026 sec
 rapg run -- npx -y @modelcontextprotocol/server-github
 ```
 
-The server reads its credential (e.g. a GitHub PAT) from the environment you tagged with an `Env Key`; the value never lands in a config file, the shell history, or (since `inherit_global` defaults to `false`) any other project's context.
+The server reads its credential (e.g. a GitHub PAT) from the environment variable named by the entry's `Env Key`; the value never lands in a config file, the shell history, or (since `inherit_global` defaults to `false`) any other project's context.
 
 ## TUI keys
 
@@ -196,7 +196,7 @@ Next on the agent-leakage track:
 
 ## Scope
 
-rapg secures the **secret boundary on your local dev machine**: keeping real keys off disk and out of agent transcripts. It is deliberately not a production identity platform: per-agent non-human identities, workload identity federation, and automated provider-side rotation belong in your cloud IAM or a server-side vault (HashiCorp Vault, AWS Secrets Manager). rapg is the local-first complement to those, not a replacement.
+rapg secures the **secret boundary on your local dev machine**. It keeps real keys off disk and out of agent transcripts. It is deliberately not a production identity platform: per-agent non-human identities, workload identity federation, and automated provider-side rotation belong in your cloud IAM or a server-side vault (HashiCorp Vault, AWS Secrets Manager). rapg is the local-first complement to those, not a replacement.
 
 ## License
 
