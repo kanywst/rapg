@@ -6,7 +6,7 @@ Single-binary, local-first secret manager built for the AI-agent era.
 
 ![Demo](demo-v2.gif)
 
-## The problem in 2026
+## The problem
 
 You hand `ANTHROPIC_API_KEY` to Claude Code. You hand `AWS_SECRET_ACCESS_KEY` to your Cursor agent. You hand a database URL to whatever shell snippet your LLM just generated.
 
@@ -14,11 +14,23 @@ Three things go wrong:
 
 1. The agent's transcript and context window now contain your secret. Logs persist, screenshots happen, transcripts get pasted into bug reports.
 2. `.env` files keep that secret in plaintext on disk, and someone always commits one by accident.
-3. Existing managers (1Password, Bitwarden) solve team sharing — they do not solve agent leakage.
+3. Existing managers (1Password, Bitwarden) solve team sharing, not agent leakage.
 
 `rapg` is a small Go binary that keeps your dev secrets in a locally encrypted vault and injects them into child processes, including AI agents, without ever writing them to disk.
 
 ## Install
+
+### Homebrew
+
+```bash
+brew install kanywst/tap/rapg
+```
+
+### Pre-built binary
+
+Download a tarball for your OS and architecture from the [latest release](https://github.com/kanywst/rapg/releases/latest), then put `rapg` on your `PATH`.
+
+### From source
 
 Requires Go 1.25 or newer.
 
@@ -54,14 +66,14 @@ rapg run -- python examples/main.py
 
 ### Wrapping MCP servers
 
-An MCP server is just another child process that needs credentials, and 2026 security guidance flags MCP servers as a dangerous single point of credential aggregation. Wrap one with `rapg run` so its token comes from the vault instead of a `.env` file on disk:
+An MCP server is another child process that needs a token, and a tempting single point of credential aggregation. Wrap one with `rapg run` so its token comes from the vault, not a `.env` on disk:
 
 ```bash
 # any MCP server that reads its token from the environment
 rapg run -- npx -y @modelcontextprotocol/server-github
 ```
 
-The server reads its credential (e.g. a GitHub PAT) from the environment variable named by the entry's `Env Key`; the value never lands in a config file, the shell history, or (since `inherit_global` defaults to `false`) any other project's context.
+The server picks up its token (a GitHub PAT, say) from the variable you set as the entry's `Env Key`. It never hits disk or shell history, and stays scoped to this project.
 
 ## TUI keys
 
@@ -74,6 +86,10 @@ The server reads its credential (e.g. a GitHub PAT) from the environment variabl
 | `ctrl+t` | Copy current TOTP code |
 | `d` | Delete the selected entry |
 | `q` | Quit |
+
+## Rotation reminders
+
+Static dev credentials don't rotate themselves, so rapg surfaces staleness. The detail view shows when each secret was last set (`Rotated: 12d ago`) and flags anything past 90 days with a `consider rotating` nudge.
 
 ## Project-scoped secrets (`.rapg.toml`)
 
@@ -109,12 +125,12 @@ Resolution rules:
 
 - Discovery walks up from `cwd` to `/`. The first `.rapg.toml` wins.
 - No `.rapg.toml` found → only entries with empty Namespace ("global") are injected.
-- A namespaced entry is invisible outside its project unless the project opts in via `inherit_global = true` — which lets shared utility secrets (e.g. `GITHUB_TOKEN`) live once in the global bucket and be borrowed by projects that ask for them. Project entries always win on key collision.
+- A namespaced entry is invisible outside its project unless the project opts in via `inherit_global = true`, which lets shared utility secrets (e.g. `GITHUB_TOKEN`) live once in the global bucket and be borrowed by projects that ask for them. Project entries always win on key collision.
 - Same `Service` / `Username` pair can exist across multiple namespaces.
 
 ## Shell hook (informational)
 
-`rapg hook <shell>` prints a snippet that announces project entry/exit on `cd`. It does **not** auto-inject secrets — run `rapg run -- <cmd>` for that. Auto-injection (direnv-style) is planned for v4.1; doing it safely without an in-shell key cache is a separate problem.
+`rapg hook <shell>` prints a snippet that announces project entry/exit on `cd`. It does **not** auto-inject secrets; run `rapg run -- <cmd>` for that. Auto-injection (direnv-style) is planned for v4.1; doing it safely without an in-shell key cache is a separate problem.
 
 ```bash
 # zsh: ~/.zshrc
@@ -146,7 +162,7 @@ pbpaste | rapg redact - | pbcopy
 
 Each occurrence of a vault `Password` becomes `[REDACTED:<env_key>]` (or `[REDACTED:<service>/<username>]` if the entry has no env key). Values shorter than 8 characters are skipped to avoid false positives. The match count is reported on stderr so it doesn't contaminate the redacted output stream.
 
-Scope is the whole vault, regardless of `.rapg.toml` — when checking a transcript, you want maximum coverage, not project boundaries.
+Scope is the whole vault, regardless of `.rapg.toml`: when checking a transcript you want maximum coverage, not project boundaries.
 
 ## Audit log (`rapg session log`)
 
@@ -160,18 +176,18 @@ rapg session log
 rapg session log --limit 100
 ```
 
-The log is plaintext metadata at mode `0600`. To wipe it, just `rm ~/.rapg/sessions.jsonl` — `rapg run` will recreate it on the next invocation.
+The log is plaintext metadata at mode `0600`. To wipe it, just `rm ~/.rapg/sessions.jsonl`; `rapg run` recreates it on the next invocation.
 
 ## Provider proxy (`rapg proxy`)
 
-`rapg run` injects the real key into the child's environment. `rapg proxy` goes further: it keeps the real key in rapg's own memory and hands the agent a short-lived, loopback-bound token instead. A prompt-injected agent that reads its own environment leaks only that token, which is valid solely on `127.0.0.1` for the life of this process and useless once it exits.
+`rapg run` puts the real key in the child's environment. `rapg proxy` doesn't: it holds the key in memory and gives the agent a short-lived, loopback-only token. If a prompt-injected agent dumps its env, all that leaks is a token that works only on `127.0.0.1` and dies with the process.
 
 ```bash
 rapg proxy --provider anthropic -- claude code
 rapg proxy --provider openai -- python agent.py
 ```
 
-The real key is an ordinary vault entry, found by its `Env Key` (default `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`, override with `--env-key`), honoring `.rapg.toml` scoping just like `rapg run`. The proxy binds a loopback-only ephemeral port (override with `--port`) and lives exactly as long as the child.
+The key is a normal vault entry, located by its `Env Key` (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` by default, or `--env-key`) and scoped by `.rapg.toml` like `rapg run`. The port is ephemeral (`--port` to pin it), and the proxy lives as long as the child.
 
 | Provider | Upstream | Child env injected |
 | --- | --- | --- |
@@ -214,8 +230,8 @@ Next on the agent-leakage track:
 
 ## Scope
 
-rapg secures the **secret boundary on your local dev machine**. It keeps real keys off disk and out of agent transcripts. It is deliberately not a production identity platform: per-agent non-human identities, workload identity federation, and automated provider-side rotation belong in your cloud IAM or a server-side vault (HashiCorp Vault, AWS Secrets Manager). rapg is the local-first complement to those, not a replacement.
+rapg covers the **secret boundary on your dev machine**: real keys off disk, out of agent transcripts. It isn't a production identity platform. Per-agent identities, workload federation, and server-side rotation live in your cloud IAM or a Vault / Secrets Manager. rapg is the local complement to those.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
