@@ -204,7 +204,7 @@ func TestOpenAISwapsTokenForRealKey(t *testing.T) {
 
 func TestOpenAIChildEnv(t *testing.T) {
 	env := openai{}.ChildEnv("http://127.0.0.1:7777", "TOK")
-	// Base URL must carry /v1 — the SDK appends endpoint paths to it.
+	// Base URL must carry /v1, since the SDK appends endpoint paths to it.
 	if env["OPENAI_BASE_URL"] != "http://127.0.0.1:7777/v1" {
 		t.Errorf("OPENAI_BASE_URL = %q, want .../v1", env["OPENAI_BASE_URL"])
 	}
