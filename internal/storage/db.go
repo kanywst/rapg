@@ -26,7 +26,7 @@ type SecretData struct {
 	Url      string `json:"url,omitempty"`
 	EnvKey   string `json:"env_key,omitempty"`
 	// RotatedAt is when the password was last set or rotated. Zero for
-	// entries created before rotation tracking existed — callers treat that
+	// entries created before rotation tracking existed, so callers treat that
 	// as "unknown", not "fresh".
 	RotatedAt time.Time `json:"rotated_at,omitzero"`
 }
@@ -42,7 +42,7 @@ func (d SecretData) RotationAge(now time.Time) (age time.Duration, ok bool) {
 }
 
 // IsStale reports whether the secret is older than StaleAfter. Entries with
-// an unknown rotation time are never reported stale — we don't nag about
+// an unknown rotation time are never reported stale, so we don't nag about
 // data we can't date.
 func (d SecretData) IsStale(now time.Time) bool {
 	age, ok := d.RotationAge(now)
