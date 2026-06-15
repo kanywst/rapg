@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
+	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,12 +15,14 @@ import (
 	"strings"
 	"syscall"
 	"text/tabwriter"
+	"time"
 
 	"github.com/awnumar/memguard"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/kanywst/rapg/internal/audit"
 	"github.com/kanywst/rapg/internal/config"
 	"github.com/kanywst/rapg/internal/core"
+	"github.com/kanywst/rapg/internal/proxy"
 	"github.com/kanywst/rapg/internal/redact"
 	"github.com/kanywst/rapg/internal/storage"
 	"github.com/kanywst/rapg/internal/ui"
@@ -299,7 +304,35 @@ Install with:
 		},
 	}
 
-	rootCmd.AddCommand(genCmd, nukeCmd, exportCmd, runCmd, projectCmd, hookCmd, sessionCmd, redactCmd)
+	var proxyProvider, proxyEnvKey string
+	var proxyPort int
+	proxyCmd := &cobra.Command{
+		Use:   "proxy --provider <name> -- <command>",
+		Short: "Run a command behind a localhost gateway that holds the real API key",
+		Long: `Start a loopback-only HTTP gateway that holds a provider's real API key and
+inject a short-lived proxy token into a child process instead. The child (an
+AI agent) talks to the gateway with the token; the gateway swaps in the real
+key and forwards to the upstream provider. The real key never enters the
+child's environment, so a prompt-injected agent that reads its own env leaks
+only a token that dies with this process and is useless off-machine.
+
+The key is an ordinary vault entry, located by its Env Key (default: the
+provider's standard key, e.g. ANTHROPIC_API_KEY), honoring .rapg.toml scoping.
+
+Example:
+
+    rapg proxy --provider anthropic -- claude code`,
+		Args: cobra.MinimumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			runProxy(proxyProvider, proxyEnvKey, proxyPort, args)
+		},
+	}
+	proxyCmd.Flags().StringVar(&proxyProvider, "provider", "", "API provider to proxy (anthropic, openai)")
+	proxyCmd.Flags().StringVar(&proxyEnvKey, "env-key", "", "vault Env Key holding the real API key (default: the provider's standard key)")
+	proxyCmd.Flags().IntVar(&proxyPort, "port", 0, "localhost port to listen on (0 = ephemeral)")
+	_ = proxyCmd.MarkFlagRequired("provider")
+
+	rootCmd.AddCommand(genCmd, nukeCmd, exportCmd, runCmd, projectCmd, hookCmd, sessionCmd, redactCmd, proxyCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
@@ -484,4 +517,150 @@ func loadProject() *config.Project {
 	}
 	fmt.Fprintf(os.Stderr, "[rapg] project: %s (%s)\n", p.Namespace, path)
 	return p
+}
+
+// runProxy starts a localhost gateway holding the provider's real API key and
+// runs args[0] with a short-lived proxy token injected via the provider's
+// child env. The real key never enters the child's environment, which is the
+// whole point versus 'rapg run'. The proxy is bound to the child's lifetime:
+// when the child exits, the listener goes down with the process.
+func runProxy(providerName, envKeyOverride string, port int, args []string) {
+	prov, err := proxy.Lookup(providerName)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	envKey := envKeyOverride
+	if envKey == "" {
+		envKey = prov.DefaultEnvKey()
+	}
+
+	project := loadProject()
+	unlockVault()
+
+	envVars, err := core.GetEnvVars(project)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error getting env vars: %v\n", err)
+		os.Exit(1)
+	}
+	realKey, ok := envVars[envKey]
+	if !ok {
+		fmt.Fprintf(os.Stderr, "No vault entry tagged Env Key %q is in scope. Add one (or pass --env-key).\n", envKey)
+		os.Exit(1)
+	}
+
+	token, err := proxy.NewToken()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error minting proxy token: %v\n", err)
+		os.Exit(1)
+	}
+	gw, err := proxy.New(prov, realKey, token)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating proxy: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Loopback only, never 0.0.0.0. The proxy token is the only thing
+	// guarding the listener, and it is valid solely on this host for this
+	// process.
+	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error binding localhost port: %v\n", err)
+		os.Exit(1)
+	}
+	srv := &http.Server{
+		Handler: gw,
+		// Bound request-header reads (Slowloris guard). This caps header
+		// reading only; it does not limit streamed SSE responses.
+		ReadHeaderTimeout: 30 * time.Second,
+	}
+	go func() {
+		if serveErr := srv.Serve(ln); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+			fmt.Fprintf(os.Stderr, "[rapg] proxy server error: %v\n", serveErr)
+		}
+	}()
+	defer func() { _ = srv.Close() }()
+
+	listenURL := "http://" + ln.Addr().String()
+	fmt.Fprintf(os.Stderr, "[rapg] proxy: %s -> %s (key from %s); child sees a short-lived token, not the key\n",
+		listenURL, prov.UpstreamBaseURL(), envKey)
+
+	childEnv := prov.ChildEnv(listenURL, token)
+
+	command := args[0]
+	cmdArgs := args[1:]
+	// #nosec G204 -- the command is supplied by the user invoking the CLI; the
+	// user is the trust boundary, same as 'rapg run'.
+	runCmd := exec.Command(command, cmdArgs...)
+	runCmd.Stdin = os.Stdin
+	runCmd.Stdout = os.Stdout
+	runCmd.Stderr = os.Stderr
+
+	// Inject the same scoped secrets 'rapg run' would, EXCEPT the real
+	// provider key, which the agent reaches only through the proxy token. Then
+	// layer the provider's base-URL/token env on top so the SDK points at the
+	// gateway.
+	injected := make(map[string]string, len(envVars)+len(childEnv))
+	defaultKey := prov.DefaultEnvKey()
+	for k, v := range envVars {
+		// Exclude both the active env key and the provider's default key: a
+		// separate vault entry for the default key (e.g. ANTHROPIC_API_KEY
+		// when --env-key points elsewhere) must not reach the child as its
+		// real value. childEnv re-adds the default key set to the proxy token.
+		if k != envKey && k != defaultKey {
+			injected[k] = v
+		}
+	}
+	maps.Copy(injected, childEnv)
+
+	// Strip the real provider key if it's already exported in the parent shell;
+	// otherwise it would pass straight through to the child and defeat the
+	// whole point of the proxy. Drop the provider's default key too, in case
+	// --env-key points elsewhere but the standard var is also set.
+	runCmd.Env = childEnviron(os.Environ(), injected, envKey, prov.DefaultEnvKey())
+
+	runErr := runCmd.Run()
+
+	// Record the session: every scoped secret key in play (NOT their values),
+	// matching 'rapg run'. envKey is the proxied provider key.
+	recordSession(project, command, cmdArgs, envVars, runCmd)
+
+	if runErr != nil {
+		if runCmd.ProcessState != nil {
+			if code := runCmd.ProcessState.ExitCode(); code >= 0 {
+				os.Exit(code)
+			}
+		}
+		fmt.Fprintf(os.Stderr, "Command execution failed: %v\n", runErr)
+		os.Exit(1)
+	}
+}
+
+// childEnviron builds a child process environment from the parent's `environ`
+// (os.Environ() form: "KEY=value"), with `override` entries set last so they
+// win, and any key in `strip` removed entirely. strip is how `rapg proxy`
+// guarantees the real provider key never reaches the child even when the
+// parent shell already exports it.
+func childEnviron(environ []string, override map[string]string, strip ...string) []string {
+	stripped := make(map[string]bool, len(strip))
+	for _, k := range strip {
+		if k != "" {
+			stripped[k] = true
+		}
+	}
+	out := make([]string, 0, len(environ)+len(override))
+	for _, e := range environ {
+		key := strings.SplitN(e, "=", 2)[0]
+		if stripped[key] {
+			continue
+		}
+		if _, overridden := override[key]; overridden {
+			continue
+		}
+		out = append(out, e)
+	}
+	for k, v := range override {
+		out = append(out, fmt.Sprintf("%s=%s", k, v))
+	}
+	return out
 }

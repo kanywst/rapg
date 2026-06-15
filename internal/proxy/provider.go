@@ -21,6 +21,10 @@ import (
 type Provider interface {
 	// Name is the --provider value, e.g. "anthropic".
 	Name() string
+	// DefaultEnvKey is the vault Env Key that holds this provider's real API
+	// key by convention (e.g. "ANTHROPIC_API_KEY"). The CLI uses it to locate
+	// the key unless --env-key overrides it.
+	DefaultEnvKey() string
 	// UpstreamBaseURL is where verified requests are forwarded.
 	UpstreamBaseURL() string
 	// InboundToken extracts the proxy token the agent sent on the request,
@@ -40,8 +44,10 @@ func Lookup(name string) (Provider, error) {
 	switch name {
 	case "anthropic":
 		return anthropic{}, nil
+	case "openai":
+		return openai{}, nil
 	default:
-		return nil, fmt.Errorf("unsupported provider %q (supported: anthropic)", name)
+		return nil, fmt.Errorf("unsupported provider %q (supported: anthropic, openai)", name)
 	}
 }
 
@@ -63,6 +69,7 @@ func bearer(r *http.Request) string {
 type anthropic struct{}
 
 func (anthropic) Name() string            { return "anthropic" }
+func (anthropic) DefaultEnvKey() string   { return "ANTHROPIC_API_KEY" }
 func (anthropic) UpstreamBaseURL() string { return "https://api.anthropic.com" }
 
 func (anthropic) InboundToken(r *http.Request) string {
@@ -88,5 +95,35 @@ func (anthropic) ChildEnv(listenURL, proxyToken string) map[string]string {
 		// as x-api-key, which InboundToken accepts. Since the proxy strips the
 		// real key from the child env, this is the token, not the real key.
 		"ANTHROPIC_API_KEY": proxyToken,
+	}
+}
+
+// openai targets api.openai.com. The OpenAI SDKs send the key as
+// "Authorization: Bearer <key>" and read OPENAI_BASE_URL + OPENAI_API_KEY.
+// OPENAI_BASE_URL must include the /v1 path segment because the SDK appends
+// endpoint paths (e.g. /chat/completions) directly to it.
+type openai struct{}
+
+func (openai) Name() string            { return "openai" }
+func (openai) DefaultEnvKey() string   { return "OPENAI_API_KEY" }
+func (openai) UpstreamBaseURL() string { return "https://api.openai.com" }
+
+func (openai) InboundToken(r *http.Request) string {
+	return bearer(r)
+}
+
+func (openai) SetRealAuth(r *http.Request, realKey string) {
+	r.Header.Del("x-api-key")
+	r.Header.Set("Authorization", "Bearer "+realKey)
+}
+
+func (openai) ChildEnv(listenURL, proxyToken string) map[string]string {
+	base := listenURL + "/v1"
+	return map[string]string{
+		"OPENAI_BASE_URL": base,
+		// OPENAI_API_BASE is the legacy variable older SDKs (pre-v1 Python) and
+		// some third-party tools still read. Set both for broad compatibility.
+		"OPENAI_API_BASE": base,
+		"OPENAI_API_KEY":  proxyToken,
 	}
 }
