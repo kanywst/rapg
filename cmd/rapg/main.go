@@ -601,8 +601,13 @@ func runProxy(providerName, envKeyOverride string, port int, args []string) {
 	// layer the provider's base-URL/token env on top so the SDK points at the
 	// gateway.
 	injected := make(map[string]string, len(envVars)+len(childEnv))
+	defaultKey := prov.DefaultEnvKey()
 	for k, v := range envVars {
-		if k != envKey {
+		// Exclude both the active env key and the provider's default key: a
+		// separate vault entry for the default key (e.g. ANTHROPIC_API_KEY
+		// when --env-key points elsewhere) must not reach the child as its
+		// real value. childEnv re-adds the default key set to the proxy token.
+		if k != envKey && k != defaultKey {
 			injected[k] = v
 		}
 	}
