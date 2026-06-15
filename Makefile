@@ -32,7 +32,7 @@ clean:
 	rm -f $(BINARY_NAME)
 	rm -rf dist/
 	rm -f coverage.out
-	rm -f demo.gif
+	rm -f demo-v2.gif
 
 # Update the demo GIF (requires vhs).
 # Builds the binary first so demo.tape doesn't have to (avoids Hide-block leaks).
