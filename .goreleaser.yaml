@@ -16,9 +16,42 @@ builds:
     goarch:
       - amd64
       - arm64
+    ignore:
+      # mingw arm64 CGO support is fragile; skip this niche target.
+      - goos: windows
+        goarch: arm64
     main: ./cmd/rapg
     ldflags:
       - -s -w
+    # CGO needs a per-target C cross-compiler. These names are the ones the
+    # goreleaser-cross image provides; without them CGO falls back to the host
+    # gcc and fails to assemble other architectures.
+    overrides:
+      - goos: linux
+        goarch: amd64
+        env:
+          - CC=x86_64-linux-gnu-gcc
+          - CXX=x86_64-linux-gnu-g++
+      - goos: linux
+        goarch: arm64
+        env:
+          - CC=aarch64-linux-gnu-gcc
+          - CXX=aarch64-linux-gnu-g++
+      - goos: windows
+        goarch: amd64
+        env:
+          - CC=x86_64-w64-mingw32-gcc
+          - CXX=x86_64-w64-mingw32-g++
+      - goos: darwin
+        goarch: amd64
+        env:
+          - CC=o64-clang
+          - CXX=o64-clang++
+      - goos: darwin
+        goarch: arm64
+        env:
+          - CC=oa64-clang
+          - CXX=oa64-clang++
 
 archives:
   - formats: [tar.gz]
