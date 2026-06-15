@@ -130,7 +130,7 @@ Resolution rules:
 
 ## Shell hook (informational)
 
-`rapg hook <shell>` prints a snippet that announces project entry/exit on `cd`. It does **not** auto-inject secrets; run `rapg run -- <cmd>` for that. Auto-injection (direnv-style) is planned for v4.1; doing it safely without an in-shell key cache is a separate problem.
+`rapg hook <shell>` prints a snippet that announces project entry/exit on `cd`. It does **not** auto-inject secrets; run `rapg run -- <cmd>` for that. Auto-injection (direnv-style) is on the roadmap; doing it safely without an in-shell key cache is a separate problem.
 
 ```bash
 # zsh: ~/.zshrc
