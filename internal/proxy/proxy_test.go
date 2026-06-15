@@ -239,6 +239,48 @@ func TestAnthropicChildEnv(t *testing.T) {
 	if env["ANTHROPIC_AUTH_TOKEN"] != "TOK" {
 		t.Errorf("ANTHROPIC_AUTH_TOKEN = %q", env["ANTHROPIC_AUTH_TOKEN"])
 	}
+	// Standard SDKs read ANTHROPIC_API_KEY (sent as x-api-key); it must be the
+	// token, not the real key.
+	if env["ANTHROPIC_API_KEY"] != "TOK" {
+		t.Errorf("ANTHROPIC_API_KEY = %q, want the proxy token", env["ANTHROPIC_API_KEY"])
+	}
+}
+
+func TestGatewayDoesNotFollowRedirects(t *testing.T) {
+	const token = "tok"
+	// Upstream redirects to an external host. If the gateway followed it, Go
+	// would resend x-api-key (the real key) to that host.
+	leak := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("x-api-key") != "" {
+			t.Errorf("real key leaked to redirect target: %q", r.Header.Get("x-api-key"))
+		}
+	}))
+	defer leak.Close()
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, leak.URL, http.StatusFound)
+	}))
+	defer upstream.Close()
+
+	g := newTestGateway(t, anthropic{}, "sk-ant-REAL", token, upstream.URL)
+	front := httptest.NewServer(g)
+	defer front.Close()
+
+	// Use a non-following client so we observe what the proxy returns rather
+	// than chasing the 302 ourselves.
+	client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}}
+	req, _ := http.NewRequest(http.MethodGet, front.URL+"/v1/models", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+	// The 3xx is handed back to the agent rather than followed by the proxy.
+	if resp.StatusCode != http.StatusFound {
+		t.Errorf("status = %d, want 302 (redirect returned, not followed)", resp.StatusCode)
+	}
 }
 
 func TestLookup(t *testing.T) {
