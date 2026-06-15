@@ -46,7 +46,15 @@ func New(p Provider, realKey, token string) (*Gateway, error) {
 		realKey:  realKey,
 		token:    token,
 		upstream: base,
-		client:   &http.Client{},
+		client: &http.Client{
+			// Never follow redirects. Go copies custom headers (like the
+			// real x-api-key) across cross-domain redirects, so an upstream
+			// or open-redirect to another host could leak the real key.
+			// Return the 3xx to the agent instead.
+			CheckRedirect: func(*http.Request, []*http.Request) error {
+				return http.ErrUseLastResponse
+			},
+		},
 	}, nil
 }
 
