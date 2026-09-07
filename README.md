@@ -26,6 +26,14 @@ Three things go wrong:
 brew install kanywst/tap/rapg
 ```
 
+### Nix
+
+```bash
+nix run github:kanywst/rapg
+```
+
+The flake exposes `packages.default`, an `apps.default` for `nix run`, an `overlays.default` you can drop into a NixOS or home-manager configuration, and a `devShells.default` with the Go toolchain for hacking on rapg.
+
 ### Pre-built binary
 
 Download a tarball for your OS and architecture from the [latest release](https://github.com/kanywst/rapg/releases/latest), then put `rapg` on your `PATH`.
