@@ -24,7 +24,9 @@
             inherit version;
             src = self;
 
-            vendorHash = "sha256-FFVLFX+orpGM07c25lv6jjwlc8dB+w2VmOfgHEkcnLk=";
+            # Changes whenever go.mod or go.sum does. To refresh: put
+            # lib.fakeHash here, run `nix build .#rapg`, copy the "got:" value.
+            vendorHash = "sha256-TNBkmbFvRuirOqcDTR5Dh7QZfAxmLKW6oqQvSnaov9Y=";
 
             subPackages = [ "cmd/rapg" ];
 
