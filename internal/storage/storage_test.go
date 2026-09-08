@@ -2,6 +2,8 @@ package storage
 
 import (
 	"encoding/json"
+	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
@@ -203,5 +205,33 @@ func TestNamespaceUniqueness(t *testing.T) {
 	}
 	if a.ID == b.ID {
 		t.Errorf("Find returned the same row across namespaces: %d", a.ID)
+	}
+}
+
+// Two rapg processes can hit a fresh vault at the same time: a shell
+// completion script and the command it completes, say. Before the migration
+// ran under one lock, the loser died with "table password_entries already
+// exists".
+func TestOpenDBConcurrentOnFreshVault(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "rapg.db")
+
+	const writers = 8
+	errs := make(chan error, writers)
+	var start sync.WaitGroup
+	start.Add(1)
+
+	for range writers {
+		go func() {
+			start.Wait()
+			_, err := openDB(path)
+			errs <- err
+		}()
+	}
+	start.Done()
+
+	for range writers {
+		if err := <-errs; err != nil {
+			t.Fatalf("concurrent openDB on a fresh vault failed: %v", err)
+		}
 	}
 }

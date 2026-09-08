@@ -79,17 +79,39 @@ func InitDB() error {
 		return err
 	}
 
-	dbPath := filepath.Join(configDir, "rapg.db")
+	db, err := openDB(filepath.Join(configDir, "rapg.db"))
+	if err != nil {
+		return err
+	}
 
-	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{
+	DB = db
+	return nil
+}
+
+// openDB opens the vault at path and brings its schema up to date. Separate
+// from InitDB so it can be exercised without touching the package-level DB.
+func openDB(path string) (*gorm.DB, error) {
+	// busy_timeout makes a process wait for a lock instead of failing
+	// outright, and txlock=immediate takes the write lock at BEGIN rather
+	// than on first write. Together they let two rapg processes reaching a
+	// fresh vault at the same time queue up instead of both deciding the
+	// tables are missing and racing to create them.
+	dsn := path + "?_busy_timeout=5000&_txlock=immediate"
+
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	if err != nil {
-		return fmt.Errorf("failed to connect to database: %w", err)
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	if err := db.AutoMigrate(&PasswordEntry{}, &Meta{}); err != nil {
-		return fmt.Errorf("failed to migrate database: %w", err)
+	// The migration has to run inside one transaction, or the lock above
+	// buys nothing: AutoMigrate checks for each table and creates it in
+	// separate statements.
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		return tx.AutoMigrate(&PasswordEntry{}, &Meta{})
+	}); err != nil {
+		return nil, fmt.Errorf("failed to migrate database: %w", err)
 	}
 
 	// Pre-v4 schemas had a unique index on (Service, Username). v4 widens
@@ -102,8 +124,7 @@ func InitDB() error {
 		fmt.Fprintf(os.Stderr, "[rapg] warning: could not drop legacy idx_service_username: %v\n", err)
 	}
 
-	DB = db
-	return nil
+	return db, nil
 }
 
 // Meta Operations (for Salt and Validation Hash)
