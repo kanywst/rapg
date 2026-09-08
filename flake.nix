@@ -29,7 +29,11 @@
 
             # CGO stays at the buildGoModule default: a CGO-less binary cannot
             # open the SQLite vault.
-            ldflags = [ "-s" "-w" ];
+            ldflags = [
+              "-s"
+              "-w"
+              "-X=github.com/kanywst/rapg/internal/version.Version=${version}"
+            ];
 
             nativeBuildInputs = [ installShellFiles ];
 
