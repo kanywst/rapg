@@ -34,15 +34,11 @@ func main() {
 	memguard.CatchInterrupt()
 	defer memguard.Purge()
 
-	if err := storage.InitDB(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
-		os.Exit(1)
-	}
-
 	rootCmd := &cobra.Command{
-		Use:   "rapg",
-		Short: "The Developer-First Secret Manager",
-		Long:  `Rapg is a secure vault for your secrets, designed to replace .env files and unsecure sharing methods.`,
+		Use:    "rapg",
+		Short:  "The Developer-First Secret Manager",
+		Long:   `Rapg is a secure vault for your secrets, designed to replace .env files and unsecure sharing methods.`,
+		PreRun: openVault,
 		Run: func(cmd *cobra.Command, args []string) {
 			p := tea.NewProgram(ui.NewModel(), tea.WithAltScreen())
 			if _, err := p.Run(); err != nil {
@@ -115,8 +111,9 @@ func main() {
 	}
 
 	exportCmd := &cobra.Command{
-		Use:   "export",
-		Short: "Export secrets with EnvKey set to .env format",
+		Use:    "export",
+		Short:  "Export secrets with EnvKey set to .env format",
+		PreRun: openVault,
 		Run: func(cmd *cobra.Command, args []string) {
 			project := loadProject()
 			unlockVault()
@@ -144,7 +141,8 @@ func main() {
 		Short: "Run a command with secrets injected as environment variables",
 		Long: `Run a command with secrets injected as environment variables.
 Note: Secrets configured in Rapg will override any existing environment variables with the same name.`,
-		Args: cobra.MinimumNArgs(1),
+		Args:   cobra.MinimumNArgs(1),
+		PreRun: openVault,
 		Run: func(cmd *cobra.Command, args []string) {
 			project := loadProject()
 			unlockVault()
@@ -234,7 +232,8 @@ Examples:
 
     rapg redact ~/.claude/transcripts/today.jsonl > redacted.jsonl
     pbpaste | rapg redact - | pbcopy`,
-		Args: cobra.ExactArgs(1),
+		Args:   cobra.ExactArgs(1),
+		PreRun: openVault,
 		Run: func(cmd *cobra.Command, args []string) {
 			runRedact(args[0])
 		},
@@ -307,8 +306,9 @@ Install with:
 	var proxyProvider, proxyEnvKey string
 	var proxyPort int
 	proxyCmd := &cobra.Command{
-		Use:   "proxy --provider <name> -- <command>",
-		Short: "Run a command behind a localhost gateway that holds the real API key",
+		Use:    "proxy --provider <name> -- <command>",
+		Short:  "Run a command behind a localhost gateway that holds the real API key",
+		PreRun: openVault,
 		Long: `Start a loopback-only HTTP gateway that holds a provider's real API key and
 inject a short-lived proxy token into a child process instead. The child (an
 AI agent) talks to the gateway with the token; the gateway swaps in the real
@@ -336,6 +336,17 @@ Example:
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
+		os.Exit(1)
+	}
+}
+
+// openVault opens the on-disk vault for the commands that read secrets. It
+// runs as a PreRunE rather than from main so the commands that never touch
+// the vault (gen, nuke, project, hook, session, completion) stay usable where
+// $HOME is read-only, e.g. inside a nix build.
+func openVault(cmd *cobra.Command, args []string) {
+	if err := storage.InitDB(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
 		os.Exit(1)
 	}
 }
