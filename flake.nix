@@ -1,5 +1,5 @@
 {
-  description = "Local-first secret manager for the AI-agent era — keep API keys out of .env files and out of your agent transcripts";
+  description = "Local-first secret manager for the AI-agent era: keeps API keys out of .env files and out of your agent transcripts";
 
   # Only nixpkgs. No flake-utils, so the input closure stays at one flake and
   # `nix flake update` has exactly one thing to think about.
@@ -29,8 +29,8 @@
             subPackages = [ "cmd/rapg" ];
 
             # gorm.io/driver/sqlite pulls in mattn/go-sqlite3, which is cgo.
-            # Left at the buildGoModule default (enabled) deliberately — turning
-            # it off builds a binary that cannot open its own vault.
+            # Left at the buildGoModule default (enabled) deliberately, since
+            # turning it off builds a binary that cannot open its own vault.
             ldflags = [ "-s" "-w" ];
 
             meta = {
