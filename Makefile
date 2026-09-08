@@ -3,9 +3,13 @@
 BINARY_NAME=rapg
 MAIN_PATH=./cmd/rapg
 
+# Reported by `rapg version`. Falls back to "dev" outside a git checkout.
+VERSION?=$(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+LDFLAGS=-X github.com/kanywst/rapg/internal/version.Version=$(VERSION)
+
 # Build the binary
 build:
-	go build -o $(BINARY_NAME) $(MAIN_PATH)
+	go build -ldflags "$(LDFLAGS)" -o $(BINARY_NAME) $(MAIN_PATH)
 
 # Run properly (interactive)
 run:
@@ -25,7 +29,7 @@ vet:
 
 # Install to GOPATH/bin
 install:
-	go install $(MAIN_PATH)
+	go install -ldflags "$(LDFLAGS)" $(MAIN_PATH)
 
 # Clean build artifacts
 clean:

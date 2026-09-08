@@ -26,6 +26,7 @@ import (
 	"github.com/kanywst/rapg/internal/redact"
 	"github.com/kanywst/rapg/internal/storage"
 	"github.com/kanywst/rapg/internal/ui"
+	"github.com/kanywst/rapg/internal/version"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -35,16 +36,25 @@ func main() {
 	defer memguard.Purge()
 
 	rootCmd := &cobra.Command{
-		Use:    "rapg",
-		Short:  "The Developer-First Secret Manager",
-		Long:   `Rapg is a secure vault for your secrets, designed to replace .env files and unsecure sharing methods.`,
-		PreRun: openVault,
+		Use:     "rapg",
+		Version: version.Version,
+		Short:   "The Developer-First Secret Manager",
+		Long:    `Rapg is a secure vault for your secrets, designed to replace .env files and unsecure sharing methods.`,
+		PreRun:  openVault,
 		Run: func(cmd *cobra.Command, args []string) {
 			p := tea.NewProgram(ui.NewModel(), tea.WithAltScreen())
 			if _, err := p.Run(); err != nil {
 				fmt.Printf("Error running program: %v\n", err)
 				os.Exit(1)
 			}
+		},
+	}
+
+	versionCmd := &cobra.Command{
+		Use:   "version",
+		Short: "Print the rapg version",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Println(version.Version)
 		},
 	}
 
@@ -332,7 +342,7 @@ Example:
 	proxyCmd.Flags().IntVar(&proxyPort, "port", 0, "localhost port to listen on (0 = ephemeral)")
 	_ = proxyCmd.MarkFlagRequired("provider")
 
-	rootCmd.AddCommand(genCmd, nukeCmd, exportCmd, runCmd, projectCmd, hookCmd, sessionCmd, redactCmd, proxyCmd)
+	rootCmd.AddCommand(versionCmd, genCmd, nukeCmd, exportCmd, runCmd, projectCmd, hookCmd, sessionCmd, redactCmd, proxyCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
