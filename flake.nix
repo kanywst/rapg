@@ -15,7 +15,7 @@
     in
     {
       overlays.default = final: prev: {
-        rapg = final.callPackage ({ buildGoModule, lib }:
+        rapg = final.callPackage ({ buildGoModule, installShellFiles, lib, stdenv }:
           buildGoModule {
             pname = "rapg";
             inherit version;
@@ -30,6 +30,18 @@
             # CGO stays at the buildGoModule default: a CGO-less binary cannot
             # open the SQLite vault.
             ldflags = [ "-s" "-w" ];
+
+            nativeBuildInputs = [ installShellFiles ];
+
+            # Doubles as a regression test: the build sandbox sets HOME to an
+            # unwritable path, so this fails if `rapg completion` ever goes
+            # back to opening the vault.
+            postInstall = lib.optionalString (stdenv.buildPlatform.canExecute stdenv.hostPlatform) ''
+              installShellCompletion --cmd rapg \
+                --bash <($out/bin/rapg completion bash) \
+                --fish <($out/bin/rapg completion fish) \
+                --zsh <($out/bin/rapg completion zsh)
+            '';
 
             meta = {
               description = "Local-first secret manager for the AI-agent era";
