@@ -10,7 +10,10 @@
       # Keep this in step with the git tag when a release is cut.
       version = "0.3.1";
 
-      systems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
+      # No x86_64-darwin: nixpkgs dropped it in 26.11, and merely listing it
+      # here makes `nix flake show --all-systems` abort on the eval error.
+      # Intel-Mac users take the release tarball or the brew tap.
+      systems = [ "x86_64-linux" "aarch64-linux" "aarch64-darwin" ];
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
     in
     {
