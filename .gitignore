@@ -9,6 +9,9 @@
 # Output & Build
 /dist/
 coverage.out
+# nix build's symlink to the store path
+/result
+/result-*
 
 # OS Specific
 .DS_Store
