@@ -32,7 +32,7 @@ brew install kanywst/tap/rapg
 nix run github:kanywst/rapg
 ```
 
-The flake exposes `packages.default`, an `apps.default` for `nix run`, an `overlays.default` you can drop into a NixOS or home-manager configuration, and a `devShells.default` with the Go toolchain for hacking on rapg.
+It also exposes an overlay for NixOS and home-manager configs, and a dev shell with the Go toolchain.
 
 ### Pre-built binary
 
