@@ -27,3 +27,18 @@ jobs:
 
     - name: Test
       run: go test -v -race ./...
+
+  # Any go.mod change moves the flake's vendorHash. Without this job a
+  # dependency bump merges green and leaves `nix run` broken on master.
+  nix:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v7
+
+    - uses: cachix/install-nix-action@v31.11.1
+
+    - name: Build the flake
+      run: nix build .#rapg -L
+
+    - name: Check the flake outputs
+      run: nix flake check
