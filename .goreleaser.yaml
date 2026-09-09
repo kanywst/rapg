@@ -123,7 +123,9 @@ homebrew_casks:
     directory: Casks
 
     homepage: "https://github.com/kanywst/rapg"
-    description: "The Developer-First Secret Manager."
+    # Homebrew's audit rules want no leading article, no trailing period, and no
+    # repetition of the cask name.
+    description: "Local-first secret manager for the AI-agent era"
 
     # `auto` keeps prereleases out of the tap; tagged releases still publish.
     skip_upload: auto
