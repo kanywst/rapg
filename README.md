@@ -20,11 +20,13 @@ Three things go wrong:
 
 ## Install
 
-### Homebrew
+### Homebrew (macOS)
 
 ```bash
 brew install kanywst/tap/rapg
 ```
+
+The tap ships a cask, so this route is macOS only. On Linux, use Nix or the pre-built tarball below.
 
 ### Nix
 
