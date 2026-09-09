@@ -6,7 +6,7 @@
   outputs = { self, nixpkgs }:
     let
       # Keep this in step with the git tag when a release is cut.
-      version = "0.3.1";
+      version = "0.3.2";
 
       # No x86_64-darwin: nixpkgs dropped it in 26.11, and listing it makes
       # `nix flake show --all-systems` abort on the eval error.
