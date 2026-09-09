@@ -38,8 +38,8 @@ func main() {
 	rootCmd := &cobra.Command{
 		Use:     "rapg",
 		Version: version.Version,
-		Short:   "The Developer-First Secret Manager",
-		Long:    `Rapg is a secure vault for your secrets, designed to replace .env files and unsecure sharing methods.`,
+		Short:   "Local-first secret manager for the AI-agent era",
+		Long:    `rapg keeps your dev secrets in a locally encrypted vault and injects them into child processes, including AI agents, without ever writing them to disk.`,
 		PreRun:  openVault,
 		Run: func(cmd *cobra.Command, args []string) {
 			p := tea.NewProgram(ui.NewModel(), tea.WithAltScreen())
