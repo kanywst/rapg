@@ -14,6 +14,9 @@ on:
 
 permissions:
   contents: write
+  # Keyless cosign signing trades this OIDC token for a short-lived Fulcio
+  # certificate. Without it, the `signs` block in .goreleaser.yaml fails.
+  id-token: write
 
 jobs:
   goreleaser:
@@ -25,16 +28,38 @@ jobs:
           # validate the tag.
           fetch-depth: 0
 
+      # The goreleaser-cross image carries the C cross-toolchains but neither
+      # syft nor cosign, so install both on the runner and mount them into the
+      # container below. Both are static Go binaries, so they run fine there.
+      - name: Install syft (SBOM generator)
+        uses: anchore/sbom-action/download-syft@v0
+
+      # Pinned: cosign v3 replaced the v2 --output-certificate/--output-signature
+      # flags with a single --bundle, so the `signs` block in .goreleaser.yaml is
+      # major-version specific. Let this float and a cosign v4 would break the
+      # release silently at tag time.
+      - name: Install cosign (artifact signing)
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v3.1.3'
+
       - name: Run GoReleaser (cross, CGO)
         # GITHUB_TOKEN publishes the release on this repo. TAP_GITHUB_TOKEN is a
         # PAT with write access to kanywst/homebrew-tap (a cross-repo push the
         # default GITHUB_TOKEN can't do); set it as a repo secret. The
-        # safe.directory line avoids git's "dubious ownership" error when the
-        # container root user reads the runner-owned checkout.
+        # ACTIONS_ID_TOKEN_REQUEST_* pair is what cosign uses to fetch the OIDC
+        # token for keyless signing; the runner only sets it when the job has
+        # id-token: write. The safe.directory line avoids git's "dubious
+        # ownership" error when the container root user reads the runner-owned
+        # checkout.
         run: |
           docker run --rm \
             -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
             -e TAP_GITHUB_TOKEN="${{ secrets.TAP_GITHUB_TOKEN }}" \
+            -e ACTIONS_ID_TOKEN_REQUEST_URL \
+            -e ACTIONS_ID_TOKEN_REQUEST_TOKEN \
+            -v "$(command -v syft)":/usr/local/bin/syft:ro \
+            -v "$(command -v cosign)":/usr/local/bin/cosign:ro \
             -v "$PWD":/go/src/github.com/kanywst/rapg \
             -w /go/src/github.com/kanywst/rapg \
             --entrypoint /bin/bash \

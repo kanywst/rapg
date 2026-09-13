@@ -71,6 +71,39 @@ archives:
 checksum:
   name_template: 'checksums.txt'
 
+# One SPDX 2.3 SBOM per archive, produced by syft (goreleaser's default
+# generator and output format). The goreleaser-cross image ships the C
+# cross-toolchains but not syft, so the release workflow installs it on the
+# runner and mounts the binary into the container.
+sboms:
+  - artifacts: archive
+
+# Keyless (Fulcio / Rekor) signature over checksums.txt. Signing the checksum
+# file covers every artifact transitively, so one OIDC round trip is enough.
+#
+# This is the Sigstore bundle form: cosign v3 dropped the v2-era
+# --output-certificate / --output-signature pair and writes the certificate,
+# signature and tlog entry into a single .sigstore.json instead. The release
+# workflow pins the cosign major accordingly.
+#
+# Verify a downloaded release with:
+#
+#   cosign verify-blob \
+#     --bundle checksums.txt.sigstore.json \
+#     --certificate-identity-regexp '^https://github.com/kanywst/rapg/' \
+#     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+#     checksums.txt
+signs:
+  - cmd: cosign
+    signature: '${artifact}.sigstore.json'
+    args:
+      - sign-blob
+      - '--bundle=${signature}'
+      - '${artifact}'
+      - '--yes'
+    artifacts: checksum
+    output: true
+
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
 
