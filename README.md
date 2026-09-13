@@ -42,7 +42,7 @@ Download a tarball for your OS and architecture from the [latest release](https:
 
 ### From source
 
-Requires Go 1.25 or newer.
+Requires Go 1.26 or newer.
 
 ```bash
 go install github.com/kanywst/rapg/cmd/rapg@latest
