@@ -39,12 +39,13 @@ jobs:
       # major-version specific. Let this float and a cosign v4 would break the
       # release silently at tag time.
       #
-      # The installer has to be v4: cosign v3 releases dropped the detached
+      # The installer has to be v4.x: cosign v3 releases dropped the detached
       # `cosign-linux-amd64.sig` in favour of a `.sigstore.json` bundle, and
       # installer v3 still curls the `.sig` to verify the download, so it 404s
-      # on any cosign v3 tag.
+      # on any cosign v3 tag. sigstore publishes no moving `v4` tag, so this is
+      # pinned to an exact installer release.
       - name: Install cosign (artifact signing)
-        uses: sigstore/cosign-installer@v4
+        uses: sigstore/cosign-installer@v4.1.2
         with:
           cosign-release: 'v3.1.3'
 
