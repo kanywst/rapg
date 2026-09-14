@@ -1,0 +1,53 @@
+name: Fix vendorHash
+
+# A Go dependency bump changes go.sum, which moves the flake's fixed-output
+# derivation hash, and the `nix` job in "Test and Build" fails on it. Dependabot
+# cannot update flake.nix, and its own workflow runs get a read-only token, so
+# the repair cannot happen inside that run. This starts from the default branch
+# instead, where the token is writable, and pushes the corrected hash onto the
+# dependabot branch.
+#
+# Without this, every dependency bump sits red until someone copies a hash out
+# of an error message by hand.
+
+on:
+  workflow_run:
+    workflows: ["Test and Build"]
+    types: [completed]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    # Dependabot's own branches only, and only branches that live in this repo.
+    # This job builds the head commit's flake.nix with a writable token, so a
+    # fork's contents must never reach it.
+    if: >-
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      startsWith(github.event.workflow_run.head_branch, 'dependabot/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
+
+      - uses: cachix/install-nix-action@v31.11.1
+
+      # A no-op when the hash is already right, so a nix job that failed for
+      # some other reason falls through to the "nothing to do" path below.
+      - name: Recompute vendorHash
+        run: ./scripts/update-vendor-hash.sh
+
+      - name: Commit and push if it changed
+        run: |
+          if git diff --quiet flake.nix; then
+            echo "vendorHash is already correct; the nix job failed for another reason."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix(nix): update vendorHash for the bumped Go modules" flake.nix
+          git push origin "HEAD:${{ github.event.workflow_run.head_branch }}"
