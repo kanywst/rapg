@@ -129,6 +129,14 @@ homebrew_casks:
     # Casks are downloaded with curl, so macOS tags the payload with the
     # com.apple.quarantine attribute and Gatekeeper refuses to run it. Stripping
     # it in postflight is the migration path goreleaser documents.
+    #
+    # `brew info --cask kanywst/tap/rapg` warns that the generated `postflight`
+    # stanza is deprecated in favour of `postflight_steps`. That is goreleaser's
+    # template, not this config, and the cask is marked DO NOT EDIT, so there is
+    # nothing to change here or in the tap: goreleaser/goreleaser#6870, fix in
+    # goreleaser/goreleaser#6873, landing in goreleaser v2.19. It clears itself
+    # once the goreleaser-cross image pinned in .github/workflows/release.yml
+    # carries v2.19 or newer. The warning is cosmetic; installs still work.
     hooks:
       post:
         install: |
