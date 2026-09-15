@@ -1,4 +1,4 @@
-.PHONY: build run test clean fmt vet install demo
+.PHONY: build run test clean fmt vet install demo vendor-hash
 
 BINARY_NAME=rapg
 MAIN_PATH=./cmd/rapg
@@ -37,6 +37,11 @@ clean:
 	rm -rf dist/
 	rm -f coverage.out
 	rm -f demo-v2.gif
+
+# Recompute flake.nix's vendorHash after a dependency change (requires nix).
+# CI does this automatically for dependabot branches; this is the manual path.
+vendor-hash:
+	./scripts/update-vendor-hash.sh
 
 # Update the demo GIF (requires vhs).
 # Builds the binary first so demo.tape doesn't have to (avoids Hide-block leaks).
