@@ -1,6 +1,6 @@
 # Design: the key cache behind direnv-style auto-injection
 
-Status: **partly implemented**. `internal/keyagent` and `rapg agent` exist, and `rapg run` / `rapg export` consult a running agent. Auto-injection on `cd` is still open.
+Status: **implemented**. `internal/keyagent` and `rapg agent` exist, `rapg run` / `rapg export` consult a running agent, and `rapg hook <shell> --inject` does direnv-style auto-injection on `cd`.
 
 ## Why this blocks the roadmap
 
@@ -87,11 +87,22 @@ So the integration point is `resolveEnvVars(project)`: ask the agent, and on `Er
 - **Default TTL: 15-minute idle, 8-hour absolute.** `ssh-agent` defaults to unlimited, which is the wrong default for a tool whose pitch is blast-radius reduction. Both are adjustable with `--idle` and `--ttl` on `rapg agent start`.
 - **No auto-start.** `gpg-agent` starts itself on first use, which is convenient, and it means a process holding your master key appears without you having asked for it. `rapg agent start` runs in the foreground; backgrounding it is one `&`, and a key that dies with its terminal is a feature here rather than a limitation.
 
+## How auto-injection turned out
+
+The prediction above was that unsetting on leave would be the hard part, and it was the only part with any real design in it.
+
+`internal/shellenv` renders the transition rather than the state: given what was injected last time and what should be injected now, it emits the `unset` and `export` statements that move the shell from one to the other. The bookkeeping is a single variable, `RAPG_INJECTED`, holding the names currently injected and never the values. Three properties matter:
+
+- **Only names rapg put there are removed.** A variable absent from the tracker is never touched, so the hook cannot eat your own environment.
+- **A name being re-exported is not unset first.** Moving between two projects that share a key should not leave a window where it does not exist.
+- **Names are validated, values are quoted.** Names go into `unset` and `export` unquoted, where quoting cannot save you, so anything that is not a shell-legal identifier is dropped rather than emitted. Values are vault contents and the output is `eval`'d, so they are single-quoted per shell, and the tests run them through real `bash` and `zsh` to check that backticks, `$(...)`, quotes, newlines and backslashes come back byte-identical.
+
+Two behaviours are deliberate rather than incidental:
+
+- `rapg env` **never prompts**. It runs on every directory change; a password prompt there would be unusable. With no agent or a locked one it cleans up the previous injection and exports nothing, so forgetting to start an agent degrades to the old behaviour rather than to a broken shell.
+- **Outside a project, nothing is injected, not even globals.** `rapg run` does inject globals with no project context, but a `rapg run` invocation is scoped to one command and a shell follows you everywhere.
+
 ## What is still open
 
-1. `rapg hook <shell>` gaining an opt-in auto-injection mode that talks to the agent on `cd`. This is where the roadmap entry is actually satisfied.
-2. Optional: gate the agent behind Touch ID or a TPM, per option B. This is where the roadmap's "Secure Enclave-backed" phrasing gets honoured, as hardening on top of a portable mechanism rather than as the mechanism.
-
-**Unsetting on leave** is the hard part of item 1, and it is worth stating before anyone starts. Auto-injection that only ever adds variables is a leak of a different kind: you `cd` out of a project and its `DATABASE_URL` is still in your shell, now visible to whatever you run next. direnv solves this by tracking exactly what it exported and reversing it. rapg needs the same bookkeeping, it is not free, and doing item 1 without it would be worse than not doing it.
-
-**Windows** has no unix socket story here. Named pipes with a matching SID check are the equivalent, but no Windows user has asked, and shipping a weaker implementation to reach parity would be worse than shipping none.
+1. Gate the agent behind Touch ID / Secure Enclave on macOS or a TPM on Linux, per option B. This is where the roadmap's "Secure Enclave-backed" phrasing gets honoured, as hardening on top of a portable mechanism rather than as the mechanism.
+2. **Windows** has no unix socket story here. Named pipes with a matching SID check are the equivalent. `NewServer` refuses to start where peers cannot be identified, which is honest but not useful, and shipping a weaker implementation to reach parity would be worse than shipping none.
