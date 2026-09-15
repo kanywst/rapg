@@ -138,9 +138,9 @@ Resolution rules:
 - A namespaced entry is invisible outside its project unless the project opts in via `inherit_global = true`, which lets shared utility secrets (e.g. `GITHUB_TOKEN`) live once in the global bucket and be borrowed by projects that ask for them. Project entries always win on key collision.
 - Same `Service` / `Username` pair can exist across multiple namespaces.
 
-## Shell hook (informational)
+## Shell hook (`rapg hook`)
 
-`rapg hook <shell>` prints a snippet that announces project entry/exit on `cd`. It does **not** auto-inject secrets; run `rapg run -- <cmd>` for that. Auto-injection (direnv-style) is on the roadmap; doing it safely without an in-shell key cache is a separate problem.
+`rapg hook <shell>` prints a snippet that announces project entry and exit on `cd`.
 
 ```bash
 # zsh: ~/.zshrc
@@ -159,6 +159,33 @@ After installing, `cd` between project directories prints:
 [rapg] entered project: myapp  (rapg run -- <cmd> to inject)
 [rapg] left project: myapp
 ```
+
+### Auto-injection on `cd` (`--inject`)
+
+Add `--inject` and the hook also exports the project's env-tagged secrets when you enter, and unsets them again when you leave.
+
+```bash
+rapg agent start &                  # the hook needs a key cache
+eval "$(rapg hook zsh --inject)"    # ~/.zshrc
+```
+
+```text
+~ $ cd code/myapp
+[rapg] entered project: myapp
+~/code/myapp $ echo $DATABASE_URL
+postgres://localhost/myapp
+~/code/myapp $ cd ~
+[rapg] left project: myapp
+~ $ echo $DATABASE_URL
+                                    # gone
+```
+
+Unsetting on the way out is the part that matters. A hook that only ever exports leaves the last project's credentials in your shell for whatever you run next, which is the same class of leak as a stray `.env`. rapg tracks exactly what it injected in `RAPG_INJECTED` (names only, never values) and removes precisely those, so your own variables are never touched.
+
+Two deliberate limits:
+
+- **It needs a running agent.** `rapg env`, which the snippet calls, never prompts: this runs on every directory change and a password prompt there would be unusable. With no agent, or a locked one, the hook cleans up any previous injection and exports nothing.
+- **Outside a project it injects nothing at all**, including global entries. `rapg run` does inject globals when there is no project, but a shell follows you everywhere and that is a different bar.
 
 ## Transcript hygiene (`rapg redact`)
 
@@ -240,14 +267,16 @@ Any agent that honors a custom base URL (Claude Code, the OpenAI Agents SDK, mos
 | `rapg redact <file\|->` | Mask vault values in a file or stdin; output to stdout |
 | `rapg session log` | Show recent `rapg run` sessions from `~/.rapg/sessions.jsonl` |
 | `rapg project` | Print the current project's namespace; exit 1 if not in a project |
-| `rapg hook <shell>` | Print a `cd` notifier snippet for `zsh` / `bash` / `fish` |
+| `rapg hook <shell>` | Print a `cd` notifier snippet for `zsh` / `bash` / `fish` (`--inject` to auto-inject) |
+| `rapg env --shell <shell>` | Print the export/unset statements for the current project (used by the hook) |
 | `rapg nuke` | Wipe the local vault after confirmation |
 
 ## Roadmap
 
-Next on the agent-leakage track:
+Direnv-style auto-injection on `cd` shipped, on top of the `rapg agent` key cache. Next on the agent-leakage track:
 
-1. Direnv-style auto-injection on `cd`, with a TPM / Touch ID / Secure Enclave-backed key cache.
+1. Gate the agent behind Touch ID / Secure Enclave on macOS and a TPM on Linux, so unlocking the cache is a biometric prompt rather than a password. The portable mechanism exists now; this is hardening on top of it, not a replacement.
+2. A Windows story for the agent. It needs named pipes with a SID check, because the uid check unix sockets give us has no equivalent there. An agent that cannot identify its peers refuses to start today, which is the honest behaviour but not a useful one.
 
 ## Security
 
