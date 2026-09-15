@@ -126,9 +126,8 @@ func main() {
 		PreRun: openVault,
 		Run: func(cmd *cobra.Command, args []string) {
 			project := loadProject()
-			unlockVault()
 
-			envVars, err := core.GetEnvVars(project)
+			envVars, err := resolveEnvVars(project)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error getting env vars: %v\n", err)
 				os.Exit(1)
@@ -155,9 +154,8 @@ Note: Secrets configured in Rapg will override any existing environment variable
 		PreRun: openVault,
 		Run: func(cmd *cobra.Command, args []string) {
 			project := loadProject()
-			unlockVault()
 
-			envVars, err := core.GetEnvVars(project)
+			envVars, err := resolveEnvVars(project)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error getting env vars: %v\n", err)
 				os.Exit(1)
@@ -342,7 +340,7 @@ Example:
 	proxyCmd.Flags().IntVar(&proxyPort, "port", 0, "localhost port to listen on (0 = ephemeral)")
 	_ = proxyCmd.MarkFlagRequired("provider")
 
-	rootCmd.AddCommand(versionCmd, genCmd, nukeCmd, exportCmd, runCmd, projectCmd, hookCmd, sessionCmd, redactCmd, proxyCmd)
+	rootCmd.AddCommand(versionCmd, genCmd, nukeCmd, exportCmd, runCmd, projectCmd, hookCmd, sessionCmd, redactCmd, proxyCmd, newAgentCmd())
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
