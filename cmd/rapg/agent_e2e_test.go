@@ -3,8 +3,11 @@
 package main
 
 import (
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -12,6 +15,7 @@ import (
 	"github.com/kanywst/rapg/internal/config"
 	"github.com/kanywst/rapg/internal/core"
 	"github.com/kanywst/rapg/internal/keyagent"
+	"github.com/kanywst/rapg/internal/shellenv"
 	"github.com/kanywst/rapg/internal/storage"
 )
 
@@ -231,5 +235,123 @@ func TestNoAgentFallsBack(t *testing.T) {
 
 	if _, ok := envFromAgent(&config.Project{Namespace: "myapp"}); ok {
 		t.Fatal("envFromAgent reported success with no agent running")
+	}
+}
+
+// captureEnv runs `rapg env` for real from dir and returns what it printed.
+func captureEnv(t *testing.T, dir, shell string) string {
+	t.Helper()
+	t.Chdir(dir)
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("Pipe: %v", err)
+	}
+	saved := os.Stdout
+	os.Stdout = w
+	runEnv(shell)
+	os.Stdout = saved
+	_ = w.Close()
+
+	out, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("ReadAll: %v", err)
+	}
+	return string(out)
+}
+
+// The roadmap entry, end to end: entering a project puts its secrets in the
+// shell and leaving takes them out again. The second half is the one that
+// matters. A hook that only ever exports leaves the last project's credentials
+// sitting in your environment for whatever you run next.
+func TestEnvInjectsOnEntryAndUnsetsOnLeave(t *testing.T) {
+	bash, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash not installed")
+	}
+
+	startTestAgent(t, vaultFixture())
+
+	project := t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, config.Filename),
+		[]byte("namespace = \"myapp\"\n"), 0600); err != nil {
+		t.Fatalf("write .rapg.toml: %v", err)
+	}
+	outside := t.TempDir()
+
+	// cd into the project.
+	t.Setenv(shellenv.TrackerVar, "")
+	enter := captureEnv(t, project, "bash")
+	if !strings.Contains(enter, "export DATABASE_URL='postgres://myapp'") {
+		t.Fatalf("entering did not export the project secret:\n%s", enter)
+	}
+
+	// The shell now has the tracker set; carry it to the next invocation the
+	// way an exported variable would.
+	t.Setenv(shellenv.TrackerVar, "ANTHROPIC_API_KEY DATABASE_URL")
+
+	// cd back out.
+	leave := captureEnv(t, outside, "bash")
+	if !strings.Contains(leave, "unset ANTHROPIC_API_KEY DATABASE_URL") {
+		t.Fatalf("leaving did not unset the project secrets:\n%s", leave)
+	}
+	if strings.Contains(leave, "postgres://myapp") {
+		t.Fatalf("leaving re-exported a secret:\n%s", leave)
+	}
+
+	// Run both through a real bash, in order, and look at what survives.
+	script := enter + "\n" + leave + "\nprintf 'DB=[%s] ANT=[%s] TRACK=[%s]' " +
+		"\"${DATABASE_URL:-}\" \"${ANTHROPIC_API_KEY:-}\" \"${" + shellenv.TrackerVar + ":-}\"\n"
+	out, err := exec.Command(bash, "-c", script).CombinedOutput()
+	if err != nil {
+		t.Fatalf("bash rejected the script: %v\n%s\n%s", err, script, out)
+	}
+	if got, want := string(out), "DB=[] ANT=[] TRACK=[]"; got != want {
+		t.Errorf("after entering and leaving, the shell has %s, want %s", got, want)
+	}
+}
+
+// Outside a project nothing is injected, not even globals. `rapg run` does
+// inject globals with no project, but a shell follows you everywhere and that
+// is a different bar.
+func TestEnvInjectsNothingOutsideAProject(t *testing.T) {
+	startTestAgent(t, vaultFixture())
+	t.Setenv(shellenv.TrackerVar, "")
+
+	got := captureEnv(t, t.TempDir(), "bash")
+	if strings.Contains(got, "GITHUB_TOKEN") {
+		t.Errorf("injected a global outside a project:\n%s", got)
+	}
+	if strings.Contains(got, "export ") && !strings.Contains(got, "unset "+shellenv.TrackerVar) {
+		t.Errorf("exported something outside a project:\n%s", got)
+	}
+}
+
+// With no agent the hook must stay silent and harmless rather than prompting.
+// This runs on every cd; a password prompt there would be unusable.
+func TestEnvWithoutAnAgentStillUnsetsAndNeverPrompts(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	dir, err := os.MkdirTemp("", "rapg")
+	if err != nil {
+		t.Fatalf("MkdirTemp: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	t.Setenv("XDG_RUNTIME_DIR", filepath.Join(dir, "empty"))
+	t.Setenv(shellenv.TrackerVar, "DATABASE_URL")
+
+	project := t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, config.Filename),
+		[]byte("namespace = \"myapp\"\n"), 0600); err != nil {
+		t.Fatalf("write .rapg.toml: %v", err)
+	}
+
+	// If this prompted it would block on the terminal and the test would hang.
+	got := captureEnv(t, project, "bash")
+
+	if !strings.Contains(got, "unset DATABASE_URL") {
+		t.Errorf("did not clean up a stale injection with no agent:\n%s", got)
+	}
+	if strings.Contains(got, "export DATABASE_URL") {
+		t.Errorf("exported a secret with no agent running:\n%s", got)
 	}
 }

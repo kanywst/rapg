@@ -281,6 +281,7 @@ Default shows the last 20 entries; use --limit to widen.`,
 	sessionLogCmd.Flags().IntVar(&sessionLimit, "limit", 20, "max number of recent sessions to show; <=0 means all")
 	sessionCmd.AddCommand(sessionLogCmd)
 
+	var hookInject bool
 	hookCmd := &cobra.Command{
 		Use:   "hook <shell>",
 		Short: "Print a shell hook that announces .rapg.toml projects on cd",
@@ -288,6 +289,11 @@ Default shows the last 20 entries; use --limit to widen.`,
 when you 'cd' into a directory whose .rapg.toml declares a namespace, and
 '[rapg] left project: X' when you leave it. Purely informational — does
 not auto-inject secrets. Run 'rapg run -- <cmd>' to actually inject.
+
+With --inject, the snippet also exports the project's env-tagged secrets on
+entry and unsets them again on leave. That needs a running 'rapg agent': with
+no agent the hook stays informational rather than prompting for the master
+password on every directory change.
 
 Install with:
 
@@ -302,7 +308,11 @@ Install with:
 		ValidArgs: []string{"zsh", "bash", "fish"},
 		Args:      cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
 		Run: func(cmd *cobra.Command, args []string) {
-			snippet, ok := hookSnippets[args[0]]
+			table := hookSnippets
+			if hookInject {
+				table = injectHookSnippets
+			}
+			snippet, ok := table[args[0]]
 			if !ok {
 				fmt.Fprintf(os.Stderr, "Unsupported shell: %s (zsh|bash|fish)\n", args[0])
 				os.Exit(1)
@@ -310,6 +320,8 @@ Install with:
 			fmt.Print(snippet)
 		},
 	}
+	hookCmd.Flags().BoolVar(&hookInject, "inject", false,
+		"auto-inject the project's secrets on cd (requires a running 'rapg agent')")
 
 	var proxyProvider, proxyEnvKey string
 	var proxyPort int
@@ -340,7 +352,7 @@ Example:
 	proxyCmd.Flags().IntVar(&proxyPort, "port", 0, "localhost port to listen on (0 = ephemeral)")
 	_ = proxyCmd.MarkFlagRequired("provider")
 
-	rootCmd.AddCommand(versionCmd, genCmd, nukeCmd, exportCmd, runCmd, projectCmd, hookCmd, sessionCmd, redactCmd, proxyCmd, newAgentCmd())
+	rootCmd.AddCommand(versionCmd, genCmd, nukeCmd, exportCmd, runCmd, projectCmd, hookCmd, sessionCmd, redactCmd, proxyCmd, newAgentCmd(), newEnvCmd())
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
@@ -522,6 +534,17 @@ func recordSession(project *config.Project, command string, args []string, envVa
 // global namespace are injected). On parse failure, returns nil and warns
 // rather than aborting — a malformed config should not lock the user out.
 func loadProject() *config.Project {
+	return findProject(true)
+}
+
+// loadProjectQuiet is loadProject without the stderr notice. `rapg env` runs on
+// every directory change, so announcing the project each time would turn the
+// shell into a log.
+func loadProjectQuiet() *config.Project {
+	return findProject(false)
+}
+
+func findProject(announce bool) *config.Project {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return nil
@@ -531,10 +554,14 @@ func loadProject() *config.Project {
 		return nil
 	}
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[rapg] warning: ignoring %s: %v\n", path, err)
+		if announce {
+			fmt.Fprintf(os.Stderr, "[rapg] warning: ignoring %s: %v\n", path, err)
+		}
 		return nil
 	}
-	fmt.Fprintf(os.Stderr, "[rapg] project: %s (%s)\n", p.Namespace, path)
+	if announce {
+		fmt.Fprintf(os.Stderr, "[rapg] project: %s (%s)\n", p.Namespace, path)
+	}
 	return p
 }
 
