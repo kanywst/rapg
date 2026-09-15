@@ -1,6 +1,6 @@
 # Design: the key cache behind direnv-style auto-injection
 
-Status: **prototype** (`internal/keyagent` lands in this PR; nothing is wired into the CLI yet).
+Status: **partly implemented**. `internal/keyagent` and `rapg agent` exist, and `rapg run` / `rapg export` consult a running agent. Auto-injection on `cd` is still open.
 
 ## Why this blocks the roadmap
 
@@ -63,27 +63,35 @@ agent  → client  {"ok":true,"env":{"DATABASE_URL":"..."}}
 
 The key never crosses the socket. The scoping fields come from the client's `.rapg.toml`, and are a correctness boundary, not a security one: a hostile same-uid process can write its own `.rapg.toml`, and could already do so today. The security boundary is the socket's `0700` directory plus the peer-uid check, both of which stop a *different* user, which is the boundary rapg actually claims.
 
-## What is in this PR
+## What exists
 
-`internal/keyagent`, with no CLI surface:
+`internal/keyagent`:
 
 - `Server`: listener lifecycle, accept loop, per-connection peer-uid check, absolute TTL and idle timeout, and a `Close` that destroys the key buffer.
 - `Client`: dial and round-trip.
-- Peer credentials per platform: `SO_PEERCRED` on Linux, `LOCAL_PEERCRED` on darwin, and an explicit "unsupported" on everything else so the Windows build stays honest rather than silently insecure.
+- Peer credentials per platform: `SO_PEERCRED` on Linux, `LOCAL_PEERCRED` on darwin, and an explicit "unsupported" on everything else. `NewServer` refuses to start where peers cannot be identified, so the Windows build stays honest rather than silently insecure.
 - Stale-socket recovery, so a crashed agent does not wedge the next start.
 
-Nothing calls it yet. `unlockVault()` is untouched, so behaviour is identical to v0.3.3 for every existing command.
+`rapg agent start | status | lock | stop`, and `rapg run` / `rapg export` asking a running agent before falling back to the password prompt.
 
-## What comes next, in order
+## A correction: `unlockVault()` is the wrong integration point
 
-1. `rapg agent start | status | stop`, and `rapg agent unlock` to seed the key.
-2. `unlockVault()` consults the agent first and falls back to the password prompt. With no agent running this is a no-op, which is the intended default.
-3. `rapg hook <shell>` gains an opt-in auto-injection mode that talks to the agent on `cd`. This is where the roadmap entry is actually satisfied, and it needs its own thinking about how to *unset* variables when you leave a project.
-4. Optional: gate the agent's `unlock` behind Touch ID or a TPM, per option B. This is the point where the roadmap's "Secure Enclave-backed" phrasing gets honoured, as hardening on top of a portable mechanism rather than as the mechanism.
+An earlier draft of this document listed "`unlockVault()` consults the agent first" as the wiring step. That contradicts the decision two sections up, and it took writing the code to notice.
 
-## Open questions
+`unlockVault()` exists to populate `core.SessionKey`. The agent will not hand the key over, by design, so it can never satisfy that function. What the agent can satisfy is the *question* `rapg run` and `rapg export` actually ask, which is "what env vars go into this child".
 
-- **Default TTL.** `ssh-agent` defaults to unlimited and lets you pass `-t`. For a secret manager whose pitch is blast-radius reduction, unlimited is the wrong default. A 15-minute idle timeout with a 8-hour absolute cap is the current guess in the prototype, but it is a guess.
-- **Should the agent auto-start?** Auto-starting on first `rapg run` is convenient and is what `gpg-agent` does. It also means a background process holding your master key appears without you asking for it. Leaning towards explicit start.
-- **Unsetting on leave.** Auto-injection that only ever adds variables is a leak of a different kind: you `cd` out of a project and its `DATABASE_URL` is still in your shell. direnv solves this by tracking what it exported. rapg would need the same bookkeeping, and it is not free.
-- **Windows.** There is no unix socket story here. Named pipes with a matching SID check are the equivalent, but no Windows user has asked, and shipping a weaker implementation to reach parity would be worse than shipping none.
+So the integration point is `resolveEnvVars(project)`: ask the agent, and on `ErrNoAgent` or `ErrLocked` fall back to prompting and resolving locally. Commands that genuinely need the key in this process (`rapg redact`, the TUI, `rapg proxy`) still prompt every time, and that is correct rather than a gap. Extending the agent to serve them would mean either handing the key over, which the design rejects, or growing a new capability per command, which is a decision to take one command at a time.
+
+## Settled since the prototype
+
+- **Default TTL: 15-minute idle, 8-hour absolute.** `ssh-agent` defaults to unlimited, which is the wrong default for a tool whose pitch is blast-radius reduction. Both are adjustable with `--idle` and `--ttl` on `rapg agent start`.
+- **No auto-start.** `gpg-agent` starts itself on first use, which is convenient, and it means a process holding your master key appears without you having asked for it. `rapg agent start` runs in the foreground; backgrounding it is one `&`, and a key that dies with its terminal is a feature here rather than a limitation.
+
+## What is still open
+
+1. `rapg hook <shell>` gaining an opt-in auto-injection mode that talks to the agent on `cd`. This is where the roadmap entry is actually satisfied.
+2. Optional: gate the agent behind Touch ID or a TPM, per option B. This is where the roadmap's "Secure Enclave-backed" phrasing gets honoured, as hardening on top of a portable mechanism rather than as the mechanism.
+
+**Unsetting on leave** is the hard part of item 1, and it is worth stating before anyone starts. Auto-injection that only ever adds variables is a leak of a different kind: you `cd` out of a project and its `DATABASE_URL` is still in your shell, now visible to whatever you run next. direnv solves this by tracking exactly what it exported and reversing it. rapg needs the same bookkeeping, it is not free, and doing item 1 without it would be worse than not doing it.
+
+**Windows** has no unix socket story here. Named pipes with a matching SID check are the equivalent, but no Windows user has asked, and shipping a weaker implementation to reach parity would be worse than shipping none.

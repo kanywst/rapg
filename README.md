@@ -188,6 +188,27 @@ rapg session log --limit 100
 
 The log is plaintext metadata at mode `0600`. To wipe it, just `rm ~/.rapg/sessions.jsonl`; `rapg run` recreates it on the next invocation.
 
+## Key caching (`rapg agent`)
+
+Every `rapg run` derives the master key with Argon2id, which is deliberately slow. That is fine when you type the password once; it is not fine when something calls rapg repeatedly. `rapg agent` holds the unlocked key in memory so the next call does not have to.
+
+```bash
+rapg agent start &          # prompts once, then holds the key
+rapg run -- claude code     # no prompt
+rapg agent status
+rapg agent stop
+```
+
+The agent never hands the key out. Clients ask it to resolve env-tagged secrets for a project scope and it answers from the key it holds, the way `ssh-agent` signs rather than giving up the private key. A leaked master key would decrypt the vault forever, including entries you add later; a leaked secret costs one rotation.
+
+It listens on a unix socket in a `0700` directory and checks the peer's uid on every connection, so only your own processes can reach it. The key is forgotten after 15 minutes without use or 8 hours absolute, whichever comes first (`--idle` and `--ttl` to change that), and `rapg agent lock` forgets it on demand.
+
+It runs in the foreground on purpose, so a key that dies with its terminal is the default. Nothing starts it for you.
+
+Only `rapg run` and `rapg export` consult the agent. `rapg redact`, `rapg proxy` and the TUI need the key in their own process, so they still prompt. macOS and Linux only: the uid check has no Windows equivalent yet, and an agent that cannot identify its peers refuses to start.
+
+The design, including the options that lost, is in [`docs/key-cache-design.md`](docs/key-cache-design.md).
+
 ## Provider proxy (`rapg proxy`)
 
 `rapg run` puts the real key in the child's environment. `rapg proxy` doesn't: it holds the key in memory and gives the agent a short-lived, loopback-only token. If a prompt-injected agent dumps its env, all that leaks is a token that works only on `127.0.0.1` and dies with the process.
@@ -213,6 +234,7 @@ Any agent that honors a custom base URL (Claude Code, the OpenAI Agents SDK, mos
 | `rapg` | Launch the TUI |
 | `rapg run -- <cmd>` | Inject secrets into a child process (respects `.rapg.toml`, records to session log) |
 | `rapg proxy --provider <provider> -- <cmd>` | Run a command behind a localhost gateway that holds the real API key (`anthropic`, `openai`) |
+| `rapg agent start` | Hold the unlocked vault key in memory so `rapg run` stops prompting (also `status`, `lock`, `stop`) |
 | `rapg gen [length]` | Generate a cryptographically random password |
 | `rapg export` | Print env-tagged secrets as `KEY=value` lines (respects `.rapg.toml`) |
 | `rapg redact <file\|->` | Mask vault values in a file or stdin; output to stdout |
