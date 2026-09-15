@@ -9,6 +9,10 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// Supported reports that this platform can identify the process on the other
+// end of a unix socket, which is the precondition for running an agent.
+const Supported = true
+
 // peerUID returns the uid of the process on the other end of conn.
 //
 // The 0700 socket directory already keeps other users out. This is the second

@@ -463,3 +463,29 @@ func TestOverlongSocketPathIsRejectedClearly(t *testing.T) {
 		t.Error("key survived a failed NewServer")
 	}
 }
+
+// `rapg agent stop` must get a success reply before the agent goes away, and
+// the agent must then actually be gone.
+func TestStopRepliesThenShutsDown(t *testing.T) {
+	key := testKey(t)
+	_, path := startAgent(t, Config{Key: key})
+
+	if err := Stop(path); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := Status(path); errors.Is(err, ErrNoAgent) {
+			if key.IsAlive() {
+				t.Error("key survived Stop")
+			}
+			if _, err := os.Stat(path); !os.IsNotExist(err) {
+				t.Errorf("socket still present after Stop: %v", err)
+			}
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("agent still answering after Stop")
+}

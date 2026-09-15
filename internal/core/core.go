@@ -122,6 +122,19 @@ func LockVault() {
 	}
 }
 
+// TakeSessionKey transfers ownership of the session key to the caller and
+// leaves the vault locked. The caller is then responsible for destroying it.
+//
+// This exists for `rapg agent start`, which unlocks the vault the normal way
+// and then hands the key to the agent for the rest of the process's life.
+// Without an explicit transfer the key would have two owners, and whichever
+// destroyed it first would leave the other holding freed memory.
+func TakeSessionKey() *memguard.LockedBuffer {
+	key := SessionKey
+	SessionKey = nil
+	return key
+}
+
 // GenerateRandomPassword creates a cryptographically secure random password.
 func GenerateRandomPassword(length int) (string, error) {
 	const letters = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$%^&*()-_=+[]{}|;:,.<>?"
@@ -145,15 +158,25 @@ func AddEntry(namespace, service, username string, data storage.SecretData) erro
 	return storage.Create(namespace, service, username, data, SessionKey.Bytes(), crypto.EncryptAESGCM)
 }
 
-// GetEntry returns the decrypted secret data.
+// GetEntry returns the decrypted secret data, using the process-wide
+// SessionKey.
 func GetEntry(entry storage.PasswordEntry) (*storage.SecretData, error) {
 	if SessionKey == nil {
 		return nil, errors.New("vault locked")
 	}
-
 	// SessionKey.Bytes() returns a slice referencing the protected memory.
 	// It is only valid as long as SessionKey is not destroyed.
-	decrypted, err := crypto.DecryptAESGCM(entry.Cipher, SessionKey.Bytes())
+	return GetEntryWithKey(SessionKey.Bytes(), entry)
+}
+
+// GetEntryWithKey is GetEntry against an explicitly supplied key rather than
+// the package-level SessionKey.
+//
+// keyagent holds its key in its own buffer and hands it to a resolver for the
+// duration of one call, so it needs a way in that does not go through global
+// state. The key slice is not retained.
+func GetEntryWithKey(key []byte, entry storage.PasswordEntry) (*storage.SecretData, error) {
+	decrypted, err := crypto.DecryptAESGCM(entry.Cipher, key)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +212,13 @@ func GetEnvVars(project *config.Project) (map[string]string, error) {
 	if SessionKey == nil {
 		return nil, errors.New("vault locked")
 	}
+	return GetEnvVarsWithKey(SessionKey.Bytes(), project)
+}
 
+// GetEnvVarsWithKey is GetEnvVars against an explicitly supplied key rather
+// than the package-level SessionKey. The scoping policy is identical; see
+// GetEnvVars for it. The key slice is not retained.
+func GetEnvVarsWithKey(key []byte, project *config.Project) (map[string]string, error) {
 	entries, err := storage.List()
 	if err != nil {
 		return nil, err
@@ -204,7 +233,7 @@ func GetEnvVars(project *config.Project) (map[string]string, error) {
 			if !match(entry) {
 				continue
 			}
-			secret, err := GetEntry(entry)
+			secret, err := GetEntryWithKey(key, entry)
 			if err != nil || secret.EnvKey == "" {
 				continue
 			}

@@ -27,6 +27,8 @@ const (
 	OpStatus Op = "status"
 	// OpLock discards the held key. The agent keeps listening.
 	OpLock Op = "lock"
+	// OpStop discards the held key and shuts the agent down.
+	OpStop Op = "stop"
 )
 
 // maxRequestBytes bounds a single request line. The largest legitimate
@@ -45,6 +47,10 @@ const maxRequestBytes = 64 << 10
 type Request struct {
 	Op Op `json:"op"`
 
+	// HasProject distinguishes "no .rapg.toml was found" from "a project whose
+	// namespace happens to be empty". The two mean different things to the
+	// scoping rules, and an absent Namespace cannot carry the difference.
+	HasProject    bool   `json:"has_project,omitempty"`
 	Namespace     string `json:"namespace,omitempty"`
 	InheritGlobal bool   `json:"inherit_global,omitempty"`
 	// Keys is the .rapg.toml whitelist. Its three states are load-bearing and

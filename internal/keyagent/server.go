@@ -73,6 +73,12 @@ func NewServer(cfg Config) (*Server, error) {
 	if cfg.Key == nil {
 		return nil, errors.New("keyagent: no key")
 	}
+	if !Supported {
+		// An agent that cannot identify its peers would be a weaker mechanism
+		// wearing the same name, so it does not start at all.
+		cfg.Key.Destroy()
+		return nil, errors.New("keyagent: not supported on this platform")
+	}
 	if cfg.Resolve == nil {
 		cfg.Key.Destroy()
 		return nil, errors.New("keyagent: no resolver")
@@ -264,11 +270,20 @@ func (s *Server) handle(conn *net.UnixConn) {
 		return
 	}
 
-	_ = writeMessage(conn, s.dispatch(req))
+	resp, stop := s.dispatch(req)
+	_ = writeMessage(conn, resp)
+
+	// Shut down only after the reply is on the wire, so `rapg agent stop`
+	// reports success rather than a closed connection.
+	if stop {
+		_ = conn.Close()
+		_ = s.Close()
+	}
 }
 
-// dispatch runs one request against the held key.
-func (s *Server) dispatch(req Request) Response {
+// dispatch runs one request against the held key. The second return says
+// whether the agent should shut down once the reply has been written.
+func (s *Server) dispatch(req Request) (Response, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -279,36 +294,41 @@ func (s *Server) dispatch(req Request) Response {
 	switch req.Op {
 	case OpStatus:
 		if s.key == nil {
-			return Response{Ok: true, Unlocked: false}
+			return Response{Ok: true, Unlocked: false}, false
 		}
 		return Response{
 			Ok:               true,
 			Unlocked:         true,
 			ExpiresInSeconds: int64(s.expiresInLocked() / time.Second),
-		}
+		}, false
 
 	case OpLock:
 		if s.key != nil {
 			s.key.Destroy()
 			s.key = nil
 		}
-		return Response{Ok: true}
+		return Response{Ok: true}, false
+
+	case OpStop:
+		// Close does the key destruction and the socket teardown; doing it
+		// here as well would deadlock on mu.
+		return Response{Ok: true}, true
 
 	case OpEnv:
 		if s.key == nil {
-			return Response{Err: ErrLocked.Error()}
+			return Response{Err: ErrLocked.Error()}, false
 		}
 		env, err := s.resolve(s.key.Bytes(), req)
 		if err != nil {
-			return Response{Err: err.Error()}
+			return Response{Err: err.Error()}, false
 		}
 		// Only a request the key actually served counts as use. A status poll
 		// from a shell prompt must not hold the key open indefinitely.
 		s.lastUse = s.now()
-		return Response{Ok: true, Env: env}
+		return Response{Ok: true, Env: env}, false
 
 	default:
-		return Response{Err: fmt.Sprintf("unknown op %q", req.Op)}
+		return Response{Err: fmt.Sprintf("unknown op %q", req.Op)}, false
 	}
 }
 
