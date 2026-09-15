@@ -7,6 +7,11 @@ import (
 	"net"
 )
 
+// Supported reports that this platform cannot identify the process on the
+// other end of a unix socket, so NewServer refuses rather than listening
+// without being able to tell who it is answering.
+const Supported = false
+
 // ErrUnsupportedPlatform reports that this OS has no peer-credential check
 // wired up, so the agent refuses to run at all.
 //

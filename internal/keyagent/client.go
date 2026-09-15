@@ -82,3 +82,9 @@ func Lock(path string) error {
 	_, err := Do(path, Request{Op: OpLock})
 	return err
 }
+
+// Stop asks the agent to discard its key and exit.
+func Stop(path string) error {
+	_, err := Do(path, Request{Op: OpStop})
+	return err
+}
