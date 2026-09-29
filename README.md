@@ -1,5 +1,13 @@
 # rapg
 
+> [!WARNING]
+> **Deprecated (2026-09-29), to be archived on or after 2026-12-29.**
+> 1Password now ships agent-safe secret delivery as GA (Environments,
+> a Claude Code plugin, and an MCP server that never returns secret
+> values), which is the problem rapg set out to solve. rapg still works
+> and v0.4.0 stays downloadable, but no new features or releases are
+> planned. See <https://www.1password.dev/get-started/secure-ai-access>.
+
 Single-binary, local-first secret manager built for the AI-agent era.
 
 [![Go Version](https://img.shields.io/github/go-mod/go-version/kanywst/rapg?style=flat-square)](https://go.dev/) [![Build Status](https://img.shields.io/github/actions/workflow/status/kanywst/rapg/test.yml?branch=master&style=flat-square)](https://github.com/kanywst/rapg/actions) [![License](https://img.shields.io/github/license/kanywst/rapg?style=flat-square)](LICENSE)

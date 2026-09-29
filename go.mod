@@ -1,3 +1,4 @@
+// Deprecated: rapg is no longer maintained and will be archived; see the README.
 module github.com/kanywst/rapg
 
 go 1.26.0
