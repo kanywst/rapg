@@ -5,8 +5,9 @@
 > 1Password now ships agent-safe secret delivery as GA (Environments,
 > a Claude Code plugin, and an MCP server that never returns secret
 > values), which is the problem rapg set out to solve. rapg still works
-> and v0.4.0 stays downloadable, but no new features or releases are
-> planned. See <https://www.1password.dev/get-started/secure-ai-access>.
+> and the latest release stays downloadable, but no new features are
+> planned; releases until archiving are security rebuilds only. See
+> <https://www.1password.dev/get-started/secure-ai-access>.
 
 Single-binary, local-first secret manager built for the AI-agent era.
 
