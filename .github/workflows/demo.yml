@@ -36,7 +36,8 @@ jobs:
 
       - uses: actions/setup-go@v7
         with:
-          go-version: '1.26'
+          # go.mod's toolchain line, which is also the release Go.
+          go-version-file: go.mod
 
       - name: Install sqlite + vhs runtime deps
         # vhs needs ttyd + ffmpeg. ubuntu-latest ships modern enough versions

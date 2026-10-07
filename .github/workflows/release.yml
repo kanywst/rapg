@@ -58,6 +58,11 @@ jobs:
         # id-token: write. The safe.directory line avoids git's "dubious
         # ownership" error when the container root user reads the runner-owned
         # checkout.
+        #
+        # The image tag fixes the Go that builds the release (it runs with
+        # GOTOOLCHAIN=auto, and a toolchain line can only upgrade it). Keep it in
+        # lockstep with the `toolchain` line in go.mod, which is what CI tests
+        # with: bump both together. Dependabot bumps neither.
         run: |
           docker run --rm \
             -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
@@ -69,5 +74,5 @@ jobs:
             -v "$PWD":/go/src/github.com/kanywst/rapg \
             -w /go/src/github.com/kanywst/rapg \
             --entrypoint /bin/bash \
-            goreleaser/goreleaser-cross:v1.26.3 \
+            goreleaser/goreleaser-cross:v1.27.1-2 \
             -c "git config --global --add safe.directory /go/src/github.com/kanywst/rapg && goreleaser release --clean"
