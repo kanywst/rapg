@@ -3,6 +3,10 @@ module github.com/kanywst/rapg
 
 go 1.26.0
 
+// Must match the Go in the goreleaser-cross image tag in
+// .github/workflows/release.yml; bump both together.
+toolchain go1.27.1
+
 require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/atotto/clipboard v0.1.4
