@@ -17,9 +17,9 @@ require (
 	github.com/nbutton23/zxcvbn-go v0.0.0-20210217022336-fa2cb2858354
 	github.com/pquerna/otp v1.5.0
 	github.com/spf13/cobra v1.10.2
-	golang.org/x/crypto v0.57.0
+	golang.org/x/crypto v0.58.0
 	golang.org/x/sys v0.49.0
-	golang.org/x/term v0.46.0
+	golang.org/x/term v0.47.0
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.2
 )
@@ -51,5 +51,5 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
-	golang.org/x/text v0.42.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
 )
