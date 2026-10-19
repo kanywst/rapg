@@ -23,7 +23,7 @@
 
             # Moves with go.mod. To refresh: set lib.fakeHash, `nix build
             # .#rapg`, copy the "got:" value.
-            vendorHash = "sha256-tbYNmqTlJ1P3+sPohQcvwH1VduJDKc1AT1rtWdbUlZc=";
+            vendorHash = "sha256-irFcSyWs8xK7MOHGX2wZwsJX4QgLmc6WxlDeK3Yajuw=";
 
             subPackages = [ "cmd/rapg" ];
 
