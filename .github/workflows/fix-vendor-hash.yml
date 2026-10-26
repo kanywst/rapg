@@ -34,7 +34,7 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_branch }}
 
-      - uses: cachix/install-nix-action@v31.11.2
+      - uses: cachix/install-nix-action@31.11.3
 
       # A no-op when the hash is already right, so a nix job that failed for
       # some other reason falls through to the "nothing to do" path below.
