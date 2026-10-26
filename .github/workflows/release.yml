@@ -74,5 +74,5 @@ jobs:
             -v "$PWD":/go/src/github.com/kanywst/rapg \
             -w /go/src/github.com/kanywst/rapg \
             --entrypoint /bin/bash \
-            goreleaser/goreleaser-cross:v1.27.1-2 \
+            goreleaser/goreleaser-cross:v1.27.3 \
             -c "git config --global --add safe.directory /go/src/github.com/kanywst/rapg && goreleaser release --clean"
