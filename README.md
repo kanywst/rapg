@@ -1,12 +1,12 @@
 # rapg
 
 > [!WARNING]
-> **Deprecated (2026-09-29), to be archived on or after 2026-12-29.**
+> **Deprecated (2026-09-29), archived on 2026-11-08.**
 > 1Password now ships agent-safe secret delivery as GA (Environments,
 > a Claude Code plugin, and an MCP server that never returns secret
 > values), which is the problem rapg set out to solve. rapg still works
-> and the latest release stays downloadable, but no new features are
-> planned; releases until archiving are security rebuilds only. See
+> and the latest release stays downloadable, but there will be no
+> further releases, security fixes included. See
 > <https://www.1password.dev/get-started/secure-ai-access>.
 
 Single-binary, local-first secret manager built for the AI-agent era.
