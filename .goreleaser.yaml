@@ -170,3 +170,9 @@ homebrew_casks:
 
     # `auto` keeps prereleases out of the tap; tagged releases still publish.
     skip_upload: auto
+
+    # rapg is deprecated (see README). The cask is regenerated on every release,
+    # so a `deprecate!` added by hand in the tap is dropped by the next one: that
+    # is what v0.4.1 did to kanywst/homebrew-tap#9. Keep it here instead.
+    custom_block: |
+      deprecate! date: "2026-09-29", because: :unmaintained
